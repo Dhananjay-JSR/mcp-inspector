@@ -1,5 +1,5 @@
 {
-  "name": "mcp-inspector",
+  "name": "mcp--inspector",
   "displayName": "MCP Inspector",
   "publisher": "DhananjaySenday",
   "icon": "resources/icon-black.png",
@@ -7,7 +7,7 @@
   "version": "0.0.1",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Dhananjay-JSR/mcp-inspector"
+    "url": "https://github.com/Dhananjay-JSR/mcp--inspector"
   },
   "author": {
     "email": "hello@dhananjaay.dev",
@@ -28,23 +28,23 @@
   "contributes": {
     "commands": [
       {
-        "command": "mcp-inspector.createNewRequest",
+        "command": "mcp--inspector.createNewRequest",
         "title": "Create New MCP Request"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "mcp-inspector",
+          "id": "mcp--inspector",
           "title": "MCP Inspector",
           "icon": "resources/icon.svg"
         }
       ]
     },
     "views": {
-      "mcp-inspector": [
+      "mcp--inspector": [
         {
-          "id": "mcp-inspector.inspector-view",
+          "id": "mcp--inspector.inspector-view",
           "name": "Inspector",
           "type": "webview"
         }

@@ -21,7 +21,7 @@ export class McpInspectorViewProvider implements vscode.WebviewViewProvider {
 			async message => {
 				switch (message.command) {
 					case 'createNewRequest':
-						vscode.commands.executeCommand('mcp-inspector.createNewRequest');
+						vscode.commands.executeCommand('mcp--inspector.createNewRequest');
 						break;
 				}
 			},
