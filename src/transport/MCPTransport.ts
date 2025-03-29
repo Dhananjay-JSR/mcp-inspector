@@ -36,7 +36,7 @@ export class MCPClient {
                 command: scriptPath,
                 args: argsArray,
              });
-
+             
              this.mcp.connect(this.transport);
             
             const toolsResult = await this.mcp.listTools();

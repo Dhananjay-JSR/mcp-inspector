@@ -175,6 +175,10 @@ export class MCPInspectorPanel {
 							<label for="command">Server Script Path:</label>
 							<input type="text" id="command" placeholder="Enter path to server script (.js or .py)">
 						</div>
+						<div class="form-group">
+							<label for="scriptArgs">Script Arguments:</label>
+							<input type="text" id="scriptArgs" placeholder="Enter script arguments (optional)">
+						</div>
 					</div>
 
 					<!-- SSE Section -->
@@ -203,7 +207,7 @@ export class MCPInspectorPanel {
 					</div>
 				</div>
 				<script>
-					const vscode = acquireVsCodeApi();
+	const vscode = acquireVsCodeApi();
 					let isConnected = false;
 
 					function handleTransportChange() {
@@ -222,9 +226,12 @@ export class MCPInspectorPanel {
 						let connectionData = {};
 
 						if (transportType === 'stdio') {
+							const command = document.getElementById('command').value;
+							const args = document.getElementById('scriptArgs').value;
 							connectionData = {
 								transport: 'stdio',
-								command: document.getElementById('command').value
+								command: command,
+								args: args
 							};
 						} else {
 							connectionData = {
@@ -320,11 +327,13 @@ export class MCPInspectorPanel {
 			// Create a new MCP client for this session
 			this._mcpClient = new MCPClient();
 
-			// Get the server script path from the command
 			const serverScriptPath = connectionData.command;
+			const scriptArgs = connectionData.args || '';
+
 			
 			// Connect to the server using STDIO
-			const result = await this._mcpClient.connectToStdio(serverScriptPath);
+			const result = await this._mcpClient.connectToStdio(serverScriptPath, scriptArgs);
+
 			
 			if (result.success) {
 				// Send success message back to webview
