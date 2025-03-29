@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { McpInspectorViewProvider } from './views/Sidebar';
+import { MCPInspectorPanel } from './views/Inspector';
 
 export function activate(context: vscode.ExtensionContext) {
 	const viewId ="mcp-inspector.inspector-view";
@@ -10,7 +11,7 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 	context.subscriptions.push(viewRegisterer);
 	const createNewRequestCommand = vscode.commands.registerCommand('mcp-inspector.createNewRequest', () => {
-		vscode.window.showInformationMessage('Create New Request clicked!');
+		MCPInspectorPanel.createOrShow(context.extensionUri);
 	});
 	context.subscriptions.push(createNewRequestCommand);
 
