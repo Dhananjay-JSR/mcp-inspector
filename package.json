@@ -12,13 +12,38 @@
     "vscode": "^1.98.0"
   },
   "categories": [
-    "Other" , "AI" , "Debuggers" , "Testing"
+    "Other",
+    "AI",
+    "Debuggers",
+    "Testing"
   ],
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
-    ]
+      {
+        "command": "mcp-inspector.createNewRequest",
+        "title": "Create New MCP Request"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mcp-inspector",
+          "title": "MCP Inspector",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "mcp-inspector": [
+        {
+          "id": "mcp-inspector.inspector-view",
+          "name": "Inspector",
+          "type": "webview"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "yarn run compile",
