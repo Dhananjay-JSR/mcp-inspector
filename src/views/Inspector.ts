@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
+import { MCPClient } from '../transport/MCPTransport';
 
 export class MCPInspectorPanel {
 	public static currentPanel: MCPInspectorPanel | undefined;
 	private readonly _panel: vscode.WebviewPanel;
 	private _disposables: vscode.Disposable[] = [];
+    private _mcpClient: MCPClient | null = null;
 
 	private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
 		this._panel = panel;
@@ -16,18 +18,20 @@ export class MCPInspectorPanel {
 
 		// Handle messages from the webview
 		this._panel.webview.onDidReceiveMessage(
-			message => {
+			async message => {
 				switch (message.command) {
 					case 'connect':
 						const connectionData = message.data;
 						if (connectionData.transport === 'stdio') {
-							console.log('STDIO Connection:', connectionData);
-							// TODO: Implement STDIO connection logic
+							await this.handleStdioConnection(connectionData);
 						} else if (connectionData.transport === 'sse') {
-							console.log('SSE Connection:', connectionData);
-							// TODO: Implement SSE connection logic
+							await this.handleSSEConnection(connectionData);
 						}
-						return;
+                        break;
+                        case 'disconnect':
+						await this.handleMCPDisconnect();
+                        break;
+
 				}
 			},
 			null,
@@ -62,7 +66,7 @@ export class MCPInspectorPanel {
 
 	private _getRenderer(webview: vscode.Webview) {
 		return `
-			<!DOCTYPE html>
+        <!DOCTYPE html>
 			<html lang="en">
 			<head>
 				<meta charset="UTF-8">
@@ -135,6 +139,23 @@ export class MCPInspectorPanel {
 					.status-connected {
 						background-color: #00C851;
 					}
+					.tools-container {
+						margin-top: 20px;
+						display: none;
+					}
+					.tools-container.visible {
+						display: block;
+					}
+					.tool-item {
+						padding: 10px;
+						border: 1px solid var(--vscode-input-border);
+						margin-bottom: 10px;
+						border-radius: 3px;
+						cursor: pointer;
+					}
+					.tool-item:hover {
+						background-color: var(--vscode-list-hoverBackground);
+					}
 				</style>
 			</head>
 			<body>
@@ -151,12 +172,8 @@ export class MCPInspectorPanel {
 					<!-- STDIO Section -->
 					<div id="stdioSection" class="transport-section active">
 						<div class="form-group">
-							<label for="command">Command:</label>
-							<input type="text" id="command" placeholder="Enter command">
-						</div>
-						<div class="form-group">
-							<label for="arguments">Arguments:</label>
-							<textarea id="arguments" rows="3" placeholder="Enter command arguments"></textarea>
+							<label for="command">Server Script Path:</label>
+							<input type="text" id="command" placeholder="Enter path to server script (.js or .py)">
 						</div>
 					</div>
 
@@ -179,6 +196,11 @@ export class MCPInspectorPanel {
 						<h3>Connection Status:</h3>
 						<pre id="status">Not connected</pre>
 					</div>
+
+					<div id="toolsContainer" class="tools-container">
+						<h3>Available Tools:</h3>
+						<div id="toolsList"></div>
+					</div>
 				</div>
 				<script>
 					const vscode = acquireVsCodeApi();
@@ -191,14 +213,18 @@ export class MCPInspectorPanel {
 					}
 
 					function connect() {
+						if (isConnected) {
+							disconnect();
+							return;
+						}
+
 						const transportType = document.getElementById('transportType').value;
 						let connectionData = {};
 
 						if (transportType === 'stdio') {
 							connectionData = {
 								transport: 'stdio',
-								command: document.getElementById('command').value,
-								arguments: document.getElementById('arguments').value
+								command: document.getElementById('command').value
 							};
 						} else {
 							connectionData = {
@@ -207,10 +233,6 @@ export class MCPInspectorPanel {
 							};
 						}
 
-						// Toggle connection state
-						isConnected = !isConnected;
-						updateConnectionUI();
-
 						// Send connection data to extension
 						vscode.postMessage({
 							command: 'connect',
@@ -218,25 +240,66 @@ export class MCPInspectorPanel {
 						});
 					}
 
-					function updateConnectionUI() {
+					function disconnect() {
+						vscode.postMessage({
+							command: 'disconnect'
+						});
+					}
+
+					function updateConnectionUI(connected) {
 						const statusIndicator = document.getElementById('statusIndicator');
 						const connectButtonText = document.getElementById('connectButtonText');
 						const status = document.getElementById('status');
+						const toolsContainer = document.getElementById('toolsContainer');
 
-						if (isConnected) {
+						isConnected = connected;
+
+						if (connected) {
 							statusIndicator.className = 'status-indicator status-connected';
 							connectButtonText.textContent = 'Disconnect';
 							status.textContent = 'Connected';
+							toolsContainer.classList.add('visible');
 						} else {
 							statusIndicator.className = 'status-indicator status-disconnected';
 							connectButtonText.textContent = 'Connect';
 							status.textContent = 'Disconnected';
+							toolsContainer.classList.remove('visible');
 						}
 					}
+
+					function displayTools(tools) {
+						const toolsList = document.getElementById('toolsList');
+						toolsList.innerHTML = tools.map(tool => \`
+							<div class="tool-item">
+								<strong>\${tool.name}</strong>
+								<p>\${tool.description}</p>
+							</div>
+						\`).join('');
+					}
+
+					// Handle messages from the extension
+					window.addEventListener('message', event => {
+						const message = event.data;
+						switch (message.command) {
+							case 'connectionStatus':
+								if (message.data.disconnected) {
+									updateConnectionUI(false);
+								} else if (message.data.success) {
+									updateConnectionUI(true);
+									if (message.data.tools) {
+										displayTools(message.data.tools);
+									}
+								} else {
+									updateConnectionUI(false);
+									document.getElementById('status').textContent = 'Connection failed: ' + message.data.error;
+								}
+								break;
+						}
+					});
 				</script>
 			</body>
 			</html>
-		`;
+        `;
 	}
 
 	public dispose() {
@@ -251,4 +314,103 @@ export class MCPInspectorPanel {
 			}
 		}
 	}
+
+    private async handleStdioConnection(connectionData: any) {
+		try {
+			// Create a new MCP client for this session
+			this._mcpClient = new MCPClient();
+
+			// Get the server script path from the command
+			const serverScriptPath = connectionData.command;
+			
+			// Connect to the server using STDIO
+			const result = await this._mcpClient.connectToStdio(serverScriptPath);
+			
+			if (result.success) {
+				// Send success message back to webview
+				this._panel.webview.postMessage({
+					command: 'connectionStatus',
+					data: {
+						success: true,
+						tools: result.tools
+					}
+				});
+			} else {
+				// Send error message back to webview
+				this._panel.webview.postMessage({
+					command: 'connectionStatus',
+					data: {
+						success: false,
+						error: result.error
+					}
+				});
+			}
+		} catch (error) {
+			this._panel.webview.postMessage({
+				command: 'connectionStatus',
+				data: {
+					success: false,
+					error: error instanceof Error ? error.message : 'Unknown error occurred'
+				}
+			});
+		}
+	}
+
+	private async handleSSEConnection(connectionData: any) {
+		try {
+			// Create a new MCP client for this session
+			this._mcpClient = new MCPClient();
+
+			// Get the server URL
+			const serverUrl = connectionData.serverUrl;
+			
+			// Connect to the server using SSE
+			const result = await this._mcpClient.connectToSSE(serverUrl);
+			
+			if (result.success) {
+				// Send success message back to webview
+				this._panel.webview.postMessage({
+					command: 'connectionStatus',
+					data: {
+						success: true,
+						tools: result.tools
+					}
+				});
+			} else {
+				// Send error message back to webview
+				this._panel.webview.postMessage({
+					command: 'connectionStatus',
+					data: {
+						success: false,
+						error: result.error
+					}
+				});
+			}
+		} catch (error) {
+			this._panel.webview.postMessage({
+				command: 'connectionStatus',
+				data: {
+					success: false,
+					error: error instanceof Error ? error.message : 'Unknown error occurred'
+				}
+			});
+		}
+	}
+
+
+    private async handleMCPDisconnect(){
+        if (this._mcpClient) {
+			await this._mcpClient.disconnect();
+			this._mcpClient = null;
+			
+			// Send disconnect status to webview
+			this._panel.webview.postMessage({
+				command: 'connectionStatus',
+				data: {
+					success: true,
+					disconnected: true
+				}
+			});
+		}
+    }
 }
