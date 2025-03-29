@@ -1,7 +1,11 @@
 # MCP Inspector
 
 <div align="center">
-  <img src="resources/icon.svg" alt="MCP Inspector" width="200" height="200">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Dhananjay-JSR/mcp-inspector/raw/HEAD/resources/icon-black.png" width="200" height="200">
+    <source media="(prefers-color-scheme: light)" srcset="https://github.com/Dhananjay-JSR/mcp-inspector/raw/HEAD/resources/icon-white.png" width="200" height="200">
+    <img alt="MCP Inspector" src="https://github.com/Dhananjay-JSR/mcp-inspector/raw/HEAD/resources/icon-black.png" width="200" height="200">
+  </picture>
   <h1>MCP Inspector</h1>
 </div>
 
