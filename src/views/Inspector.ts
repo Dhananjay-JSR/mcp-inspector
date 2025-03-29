@@ -28,10 +28,12 @@ export class MCPInspectorPanel {
 							await this.handleSSEConnection(connectionData);
 						}
                         break;
-                        case 'disconnect':
+                    case 'disconnect':
 						await this.handleMCPDisconnect();
                         break;
-
+                    case 'executeTool':
+                        await this.handleToolExecution(message.data.toolName, message.data.args);
+                        break;
 				}
 			},
 			null,
@@ -156,6 +158,101 @@ export class MCPInspectorPanel {
 					.tool-item:hover {
 						background-color: var(--vscode-list-hoverBackground);
 					}
+					.tool-container {
+						display: flex;
+						align-items: center;
+						margin-bottom: 10px;
+						gap: 10px;
+					}
+					.tool-item {
+						flex: 1;
+						padding: 10px;
+						border: 1px solid var(--vscode-input-border);
+						border-radius: 3px;
+						cursor: pointer;
+					}
+					.tool-button {
+						width: 80px;
+						height: 36px;
+						margin: 0;
+					}
+					/* Modal styles */
+					.modal {
+						display: none;
+						position: fixed;
+						top: 0;
+						left: 0;
+						width: 100%;
+						height: 100%;
+						background-color: rgba(0, 0, 0, 0.5);
+						z-index: 1000;
+						overflow-y: auto;
+						padding: 20px;
+					}
+					.modal-content {
+						position: relative;
+						background-color: var(--vscode-editor-background);
+						margin: 5% auto;
+						padding: 20px;
+						border: 1px solid var(--vscode-input-border);
+						width: 90%;
+						max-width: 600px;
+						border-radius: 5px;
+						max-height: 80vh;
+						overflow-y: auto;
+					}
+					.modal-body {
+						max-height: calc(80vh - 150px);
+						overflow-y: auto;
+						padding-right: 10px;
+					}
+					.modal-body::-webkit-scrollbar {
+						width: 8px;
+					}
+					.modal-body::-webkit-scrollbar-track {
+						background: var(--vscode-scrollbarSlider-background);
+						border-radius: 4px;
+					}
+					.modal-body::-webkit-scrollbar-thumb {
+						background: var(--vscode-scrollbarSlider-hoverBackground);
+						border-radius: 4px;
+					}
+					.modal-body::-webkit-scrollbar-thumb:hover {
+						background: var(--vscode-scrollbarSlider-activeBackground);
+					}
+					.close {
+						position: absolute;
+						right: 10px;
+						top: 5px;
+						font-size: 20px;
+						cursor: pointer;
+					}
+					.required-field {
+						color: #ff4444;
+					}
+					.modal-buttons {
+						display: flex;
+						justify-content: flex-end;
+						gap: 10px;
+						margin-top: 20px;
+					}
+					.modal-buttons button {
+						width: auto;
+						margin: 0;
+					}
+					.response-viewer {
+						margin-top: 20px;
+						padding: 10px;
+						background-color: var(--vscode-input-background);
+						border-radius: 3px;
+						max-height: 200px;
+						overflow: auto;
+						display: none;
+					}
+					pre {
+						margin: 0;
+						white-space: pre-wrap;
+					}
 				</style>
 			</head>
 			<body>
@@ -206,8 +303,29 @@ export class MCPInspectorPanel {
 						<div id="toolsList"></div>
 					</div>
 				</div>
+
+				<!-- Tool Execution Modal -->
+				<div id="toolModal" class="modal">
+					<div class="modal-content">
+						<span class="close" onclick="closeModal()">&times;</span>
+						<h3 id="modalTitle">Execute Tool</h3>
+						<div class="modal-body">
+							<form id="toolForm">
+								<div id="toolFields"></div>
+								<div class="modal-buttons">
+									<button type="button" onclick="closeModal()">Cancel</button>
+									<button type="submit">Execute</button>
+								</div>
+							</form>
+							<div id="responseViewer" class="response-viewer">
+								<pre id="responseContent"></pre>
+							</div>
+						</div>
+					</div>
+				</div>
+
 				<script>
-	const vscode = acquireVsCodeApi();
+					const vscode = acquireVsCodeApi();
 					let isConnected = false;
 
 					function handleTransportChange() {
@@ -274,14 +392,24 @@ export class MCPInspectorPanel {
 						}
 					}
 
-					function displayTools(tools) {
+				function displayTools(tools) {
 						const toolsList = document.getElementById('toolsList');
-						toolsList.innerHTML = tools.map(tool => \`
-							<div class="tool-item">
-								<strong>\${tool.name}</strong>
-								<p>\${tool.description}</p>
-							</div>
-						\`).join('');
+						toolsList.innerHTML = tools.map(tool => {
+							const schemaString = encodeURIComponent(JSON.stringify({
+								properties: tool.input_schema?.properties || {},
+								required: tool.input_schema?.required || []
+							}));
+
+							return \`
+								<div class="tool-container">
+									<div class="tool-item">
+										<strong>\${tool.name}</strong>
+										<p>\${tool.description || ''}</p>
+									</div>
+									<button class="tool-button" onclick="showToolModal('\${tool.name}', '\${schemaString}')">RUN</button>
+								</div>
+							\`;
+						}).join('');
 					}
 
 					// Handle messages from the extension
@@ -300,6 +428,91 @@ export class MCPInspectorPanel {
 									updateConnectionUI(false);
 									document.getElementById('status').textContent = 'Connection failed: ' + message.data.error;
 								}
+								break;
+						}
+					});
+
+					function showToolModal(toolName, schemaString) {
+						const modal = document.getElementById('toolModal');
+						const modalTitle = document.getElementById('modalTitle');
+						const toolFields = document.getElementById('toolFields');
+						const responseViewer = document.getElementById('responseViewer');
+						const responseContent = document.getElementById('responseContent');
+
+						// Reset the form and response viewer
+						toolFields.innerHTML = '';
+						responseViewer.style.display = 'none';
+						responseContent.textContent = '';
+
+						// Parse the schema
+						const schema = JSON.parse(decodeURIComponent(schemaString));
+						modalTitle.textContent = \`Execute \${toolName}\`;
+
+						// Create form fields based on schema
+						Object.entries(schema.properties).forEach(([key, value]) => {
+							const isRequired = schema.required.includes(key);
+							const fieldContainer = document.createElement('div');
+							fieldContainer.className = 'form-group';
+
+							const label = document.createElement('label');
+							label.htmlFor = key;
+							label.innerHTML = \`\${key}\${isRequired ? ' <span class="required-field">*</span>' : ''}\`;
+							
+							const input = document.createElement('input');
+							input.type = 'text';
+							input.id = key;
+							input.name = key;
+							input.required = isRequired;
+
+							fieldContainer.appendChild(label);
+							fieldContainer.appendChild(input);
+							toolFields.appendChild(fieldContainer);
+						});
+
+						// Handle form submission
+						const form = document.getElementById('toolForm');
+						form.onsubmit = async (e) => {
+							e.preventDefault();
+							const formData = new FormData(form);
+							const args = {};
+							formData.forEach((value, key) => {
+								if (value) args[key] = value;
+							});
+
+							vscode.postMessage({
+								command: 'executeTool',
+								data: {
+									toolName: toolName,
+									args: args
+								}
+							});
+						};
+
+						modal.style.display = 'block';
+					}
+
+					function closeModal() {
+						const modal = document.getElementById('toolModal');
+						modal.style.display = 'none';
+					}
+
+					// Close modal when clicking outside
+					window.onclick = function(event) {
+						const modal = document.getElementById('toolModal');
+						if (event.target === modal) {
+							closeModal();
+						}
+					}
+
+					// Handle tool execution response
+					window.addEventListener('message', event => {
+						const message = event.data;
+						switch (message.command) {
+							case 'toolExecutionResponse':
+								const responseViewer = document.getElementById('responseViewer');
+								const responseContent = document.getElementById('responseContent');
+								responseViewer.style.display = 'block';
+								responseContent.textContent = JSON.stringify(message.data, null, 2);
 								break;
 						}
 					});
@@ -422,4 +635,27 @@ export class MCPInspectorPanel {
 			});
 		}
     }
+
+	private async handleToolExecution(toolName: string, args: Record<string, any>) {
+		try {
+			if (!this._mcpClient) {
+				throw new Error('Not connected to MCP server');
+			}
+
+			const result = await this._mcpClient.executeTool(toolName, args);
+			
+			this._panel.webview.postMessage({
+				command: 'toolExecutionResponse',
+				data: result
+			});
+		} catch (error) {
+			this._panel.webview.postMessage({
+				command: 'toolExecutionResponse',
+				data: {
+					success: false,
+					error: error instanceof Error ? error.message : 'Unknown error occurred'
+				}
+			});
+		}
+	}
 }

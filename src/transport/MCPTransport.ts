@@ -88,6 +88,24 @@ export class MCPClient {
         }
     }
 
+    async executeTool(toolName: string,toolArgs:Record<string,any>): Promise<{ success: boolean; result?: any; error?: string }> {
+        if (!this.transport) {
+            return { success: false, error: "Not connected to any transport" };
+        }
+
+        try {
+            const result = await this.mcp.callTool({
+                name: toolName,
+                arguments: toolArgs
+            });
+            return { success: true, result };
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+            vscode.window.showErrorMessage(`Failed to execute tool ${toolName}: ${errorMessage}`);
+            return { success: false, error: errorMessage };
+        }
+    }
+
     async disconnect(): Promise<void> {
         if (this.transport) {
             await this.mcp.close();

@@ -4,7 +4,7 @@
   "publisher": "DhananjaySenday",
   "icon": "resources/icon-black.png",
   "description": "Easily inspect and interact with MCP servers directly from Visual Studio Code—no need to download external inspectors. This extension provides seamless integration for monitoring and debugging MCP protocols within your development environment",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "repository": {
     "type": "git",
     "url": "https://github.com/Dhananjay-JSR/mcp--inspector"

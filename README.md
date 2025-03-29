@@ -36,6 +36,10 @@ Initial release of MCP Inspector with:
 - List Tool
 - STDIO / SSR Transport Support
 
+### 0.0.2 (2025-03-29)
+
+- Tool Execution Support
+
 ## Author
 
 **Dhananjay Senday**
