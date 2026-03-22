@@ -5,6 +5,17 @@ import {
     SseError,
   } from "@modelcontextprotocol/sdk/client/sse.js";
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as tls from 'tls';
+import { Agent as UndiciAgent, fetch as undiciFetch, RequestInit as UndiciRequestInit } from 'undici';
+// Author: https://github.com/agorianin
+export interface SSLOptions {
+    enabled: boolean;
+    p12Path?: string;
+    passphrase?: string;
+    rejectUnauthorized?: boolean;
+    caCertPath?: string;
+}
 
 interface InputSchema {
     type: 'object';
@@ -24,6 +35,8 @@ export class MCPClient {
     private mcp: Client;
     private transport: StdioClientTransport | SSEClientTransport | null = null;
     private tools: Tool[] = [];
+    private sslAgent: UndiciAgent | null = null;
+    private originalFetch: typeof globalThis.fetch | null = null;
 
     constructor() {
         this.mcp = new Client({ name: "mcp-debugger-vscode-extension", version: "1.0.0" });
@@ -59,13 +72,96 @@ export class MCPClient {
         }
     }
 
-    async connectToSSE(serverUrl: string): Promise<{ success: boolean; tools?: Tool[]; error?: string }> {
+    async connectToSSE(serverUrl: string, sslOptions?: SSLOptions): Promise<{ success: boolean; tools?: Tool[]; error?: string }> {
         try {
             if (!serverUrl.startsWith('http://') && !serverUrl.startsWith('https://')) {
                 throw new Error("Server URL must start with http:// or https://");
             }
 
-            this.transport = new SSEClientTransport(new URL(serverUrl));
+            let transportOpts: any = {};
+
+            // Configure SSL if enabled
+            // Author: https://github.com/agorianin
+            if (sslOptions?.enabled && sslOptions.p12Path) {
+                if (!fs.existsSync(sslOptions.p12Path)) {
+                    throw new Error(`Certificate file not found: ${sslOptions.p12Path}`);
+                }
+
+                const pfxBuffer = fs.readFileSync(sslOptions.p12Path);
+                
+                console.log('Loading P12 certificate, size:', pfxBuffer.length, 'bytes');
+                
+                // Verify the PFX can be parsed
+                try {
+                    tls.createSecureContext({
+                        pfx: pfxBuffer,
+                        passphrase: sslOptions.passphrase || '',
+                    });
+                    console.log('Successfully validated P12 certificate');
+                } catch (certError) {
+                    console.error('Failed to parse P12 certificate:', certError);
+                    throw new Error(`Invalid certificate or wrong password: ${certError instanceof Error ? certError.message : 'Unknown error'}`);
+                }
+
+                // Load CA certificate if provided
+                let caCert: Buffer | undefined;
+                if (sslOptions.caCertPath && fs.existsSync(sslOptions.caCertPath)) {
+                    caCert = fs.readFileSync(sslOptions.caCertPath);
+                    console.log('Loaded CA certificate, size:', caCert.length, 'bytes');
+                }
+
+                // Create undici agent with client certificate
+                this.sslAgent = new UndiciAgent({
+                    connect: {
+                        pfx: pfxBuffer,
+                        passphrase: sslOptions.passphrase || '',
+                        rejectUnauthorized: sslOptions.rejectUnauthorized !== false,
+                        ca: caCert,
+                    },
+                });
+                console.log('Created undici agent with client certificate');
+
+                // Store original fetch to restore later
+                this.originalFetch = globalThis.fetch;
+
+                // Create custom fetch function that uses the SSL agent
+                const sslAgentRef = this.sslAgent;
+                const customFetch = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+                    const urlString = typeof url === 'string' ? url : url instanceof URL ? url.toString() : (url as Request).url;
+                    
+                    console.log('SSL fetch request:', urlString, init?.method || 'GET');
+                    
+                    const undiciInit: UndiciRequestInit = {
+                        method: (init?.method || 'GET') as UndiciRequestInit['method'],
+                        headers: init?.headers as UndiciRequestInit['headers'],
+                        body: init?.body as UndiciRequestInit['body'],
+                        dispatcher: sslAgentRef,
+                    };
+
+                    const response = await undiciFetch(urlString, undiciInit);
+                    console.log('SSL fetch response status:', response.status);
+                    return response as unknown as Response;
+                };
+
+                // Replace globalThis.fetch so SDK's internal calls use our SSL fetch
+                (globalThis as any).fetch = customFetch;
+                console.log('Replaced globalThis.fetch with SSL-enabled fetch');
+
+                // Pass custom fetch to eventSourceInit for SSE connections
+                transportOpts = {
+                    eventSourceInit: {
+                        fetch: customFetch,
+                    },
+                };
+                
+                // Also set NODE_TLS_REJECT_UNAUTHORIZED for additional coverage if self-signed is allowed
+                if (sslOptions.rejectUnauthorized === false) {
+                    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+                    console.log('Disabled TLS certificate verification (insecure mode)');
+                }
+            }
+
+            this.transport = new SSEClientTransport(new URL(serverUrl), transportOpts);
 
             await this.mcp.connect(this.transport);
             
@@ -82,7 +178,12 @@ export class MCPClient {
             vscode.window.showInformationMessage(`Connected to MCP server via SSE with ${this.tools.length} tools`);
             return { success: true, tools: this.tools };
         } catch (e) {
-            const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
+            let errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
+            // Add more details for debugging
+            if (e instanceof Error && e.cause) {
+                errorMessage += ` (Cause: ${e.cause})`;
+            }
+            console.error('SSE Connection Error:', e);
             vscode.window.showErrorMessage(`Failed to connect to MCP server via SSE: ${errorMessage}`);
             return { success: false, error: errorMessage };
         }
@@ -112,5 +213,22 @@ export class MCPClient {
             this.transport = null;
             this.tools = [];
         }
+        
+        // Restore original fetch
+        if (this.originalFetch) {
+            (globalThis as any).fetch = this.originalFetch;
+            this.originalFetch = null;
+            console.log('Restored original globalThis.fetch');
+        }
+        
+        // Close SSL agent if it was created
+        if (this.sslAgent) {
+            await this.sslAgent.close();
+            this.sslAgent = null;
+            console.log('Closed SSL agent');
+        }
+        
+        // Reset TLS rejection setting
+        delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
     }
 } 
