@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { MCPClient } from '../transport/MCPTransport';
+import { MCPClient, SSLOptions } from '../transport/MCPTransport';
 
 export class MCPInspectorPanel {
 	public static currentPanel: MCPInspectorPanel | undefined;
@@ -34,6 +34,12 @@ export class MCPInspectorPanel {
                     case 'executeTool':
                         await this.handleToolExecution(message.data.toolName, message.data.args);
                         break;
+					case 'browseCertificate':
+						await this.handleBrowseCertificate();
+						break;
+					case 'browseCACertificate':
+						await this.handleBrowseCACertificate();
+						break;
 				}
 			},
 			null,
@@ -253,6 +259,57 @@ export class MCPInspectorPanel {
 						margin: 0;
 						white-space: pre-wrap;
 					}
+					.checkbox-label {
+						display: flex;
+						align-items: center;
+						gap: 8px;
+						cursor: pointer;
+					}
+					.checkbox-label input[type="checkbox"] {
+						width: auto;
+						margin: 0;
+					}
+					.password-container {
+						position: relative;
+						display: flex;
+						align-items: center;
+					}
+					.password-container input {
+						flex: 1;
+						padding-right: 40px;
+					}
+					.password-toggle {
+						position: absolute;
+						right: 8px;
+						background: none;
+						border: none;
+						cursor: pointer;
+						padding: 4px;
+						color: var(--vscode-input-foreground);
+						opacity: 0.7;
+						width: auto;
+						margin: 0;
+					}
+					.password-toggle:hover {
+						opacity: 1;
+						background: none;
+					}
+					.input-with-button {
+						display: flex;
+						gap: 8px;
+						align-items: center;
+					}
+					.input-with-button input {
+						flex: 1;
+						margin-bottom: 0;
+					}
+					.input-with-button button {
+						width: auto;
+						margin: 0;
+						padding: 8px 12px;
+						height: 36px;
+						white-space: nowrap;
+					}
 				</style>
 			</head>
 			<body>
@@ -283,6 +340,46 @@ export class MCPInspectorPanel {
 						<div class="form-group">
 							<label for="serverUrl">Server URL:</label>
 							<input type="text" id="serverUrl" placeholder="Enter SSE server URL">
+						</div>
+						<div class="form-group">
+							<label class="checkbox-label">
+								<input type="checkbox" id="sslEnabled" onchange="handleSSLToggle()">
+								<span>Enable SSL with Client Certificate (.p12)</span>
+							</label>
+						</div>
+						<div id="sslSection" style="display: none;">
+							<div class="form-group">
+								<label for="p12Path">Certificate Path (.p12):</label>
+								<div class="input-with-button">
+									<input type="text" id="p12Path" placeholder="Path to .p12 certificate file">
+									<button type="button" onclick="browseCertificate()">Browse...</button>
+								</div>
+							</div>
+							<div class="form-group">
+								<label for="p12Password">Certificate Password:</label>
+								<div class="password-container">
+									<input type="password" id="p12Password" placeholder="Enter certificate password">
+									<button type="button" class="password-toggle" onclick="togglePasswordVisibility()" title="Show/Hide password">
+										<svg id="eyeIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+											<circle cx="12" cy="12" r="3"></circle>
+										</svg>
+									</button>
+								</div>
+							</div>
+							<div class="form-group">
+								<label class="checkbox-label">
+									<input type="checkbox" id="allowSelfSigned">
+									<span>Allow self-signed certificates (insecure)</span>
+								</label>
+							</div>
+							<div class="form-group">
+								<label for="caCertPath">CA Certificate Path (optional):</label>
+								<div class="input-with-button">
+									<input type="text" id="caCertPath" placeholder="Path to CA certificate file (.pem, .crt)">
+									<button type="button" onclick="browseCACertificate()">Browse...</button>
+								</div>
+							</div>
 						</div>
 					</div>
 
@@ -334,6 +431,38 @@ export class MCPInspectorPanel {
 						document.getElementById('sseSection').classList.toggle('active', transportType === 'sse');
 					}
 
+					function handleSSLToggle() {
+						const sslEnabled = document.getElementById('sslEnabled').checked;
+						document.getElementById('sslSection').style.display = sslEnabled ? 'block' : 'none';
+					}
+
+					function togglePasswordVisibility() {
+						const passwordInput = document.getElementById('p12Password');
+						const eyeIcon = document.getElementById('eyeIcon');
+						
+						if (passwordInput.type === 'password') {
+							passwordInput.type = 'text';
+							// Change to "eye-off" icon
+							eyeIcon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
+						} else {
+							passwordInput.type = 'password';
+							// Change back to "eye" icon
+							eyeIcon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
+						}
+					}
+
+					function browseCertificate() {
+						vscode.postMessage({
+							command: 'browseCertificate'
+						});
+					}
+
+					function browseCACertificate() {
+						vscode.postMessage({
+							command: 'browseCACertificate'
+						});
+					}
+
 					function connect() {
 						if (isConnected) {
 							disconnect();
@@ -352,9 +481,18 @@ export class MCPInspectorPanel {
 								args: args
 							};
 						} else {
+							const sslEnabled = document.getElementById('sslEnabled').checked;
+							const allowSelfSigned = document.getElementById('allowSelfSigned')?.checked || false;
 							connectionData = {
 								transport: 'sse',
-								serverUrl: document.getElementById('serverUrl').value
+								serverUrl: document.getElementById('serverUrl').value,
+								ssl: {
+									enabled: sslEnabled,
+									p12Path: sslEnabled ? document.getElementById('p12Path').value : '',
+									passphrase: sslEnabled ? document.getElementById('p12Password').value : '',
+									rejectUnauthorized: !allowSelfSigned,
+									caCertPath: sslEnabled ? document.getElementById('caCertPath').value : ''
+								}
 							};
 						}
 
@@ -514,6 +652,12 @@ export class MCPInspectorPanel {
 								responseViewer.style.display = 'block';
 								responseContent.textContent = JSON.stringify(message.data, null, 2);
 								break;
+							case 'setCertificatePath':
+								document.getElementById('p12Path').value = message.data.path;
+								break;
+							case 'setCACertificatePath':
+								document.getElementById('caCertPath').value = message.data.path;
+								break;
 						}
 					});
 				</script>
@@ -586,8 +730,17 @@ export class MCPInspectorPanel {
 			// Get the server URL
 			const serverUrl = connectionData.serverUrl;
 			
-			// Connect to the server using SSE
-			const result = await this._mcpClient.connectToSSE(serverUrl);
+			// Get SSL options if provided
+			const sslOptions = connectionData.ssl ? {
+				enabled: connectionData.ssl.enabled,
+				p12Path: connectionData.ssl.p12Path,
+				passphrase: connectionData.ssl.passphrase,
+				rejectUnauthorized: connectionData.ssl.rejectUnauthorized,
+				caCertPath: connectionData.ssl.caCertPath
+			} : undefined;
+			
+			// Connect to the server using SSE with SSL options
+			const result = await this._mcpClient.connectToSSE(serverUrl, sslOptions);
 			
 			if (result.success) {
 				// Send success message back to webview
@@ -654,6 +807,50 @@ export class MCPInspectorPanel {
 				data: {
 					success: false,
 					error: error instanceof Error ? error.message : 'Unknown error occurred'
+				}
+			});
+		}
+	}
+
+	private async handleBrowseCertificate() {
+		const result = await vscode.window.showOpenDialog({
+			canSelectFiles: true,
+			canSelectFolders: false,
+			canSelectMany: false,
+			filters: {
+				'PKCS#12 Certificates': ['p12', 'pfx'],
+				'All Files': ['*']
+			},
+			title: 'Select SSL Certificate (.p12)'
+		});
+
+		if (result && result.length > 0) {
+			this._panel.webview.postMessage({
+				command: 'setCertificatePath',
+				data: {
+					path: result[0].fsPath
+				}
+			});
+		}
+	}
+
+	private async handleBrowseCACertificate() {
+		const result = await vscode.window.showOpenDialog({
+			canSelectFiles: true,
+			canSelectFolders: false,
+			canSelectMany: false,
+			filters: {
+				'CA Certificates': ['pem', 'crt', 'cer', 'ca-bundle'],
+				'All Files': ['*']
+			},
+			title: 'Select CA Certificate'
+		});
+
+		if (result && result.length > 0) {
+			this._panel.webview.postMessage({
+				command: 'setCACertificatePath',
+				data: {
+					path: result[0].fsPath
 				}
 			});
 		}
