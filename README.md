@@ -46,6 +46,10 @@ Initial release of MCP Inspector with:
 - Preserve the webview state and element values
 - Update dependency packages
 
+### 0.0.5 (2026-10-02)
+
+- Fix serialize-javascript high/moderate severity vulnerabilities via dependency override
+
 ## Author
 
 **Dhananjay Senday**
