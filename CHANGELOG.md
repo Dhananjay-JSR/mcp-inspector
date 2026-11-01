@@ -1,3 +1,9 @@
+## [0.6.0](https://github.com/[secure]/mcp-[secure]/compare/v0.5.1...v0.6.0) (2026-11-01)
+
+### Features
+
+* support private CAs and client certificates ([637039d](https://github.com/[secure]/mcp-[secure]/commit/637039dbc64e90c88c593fd00579acebcdd1e422))
+
 ## [0.5.1](https://github.com/[secure]/mcp-[secure]/compare/v0.5.0...v0.5.1) (2026-11-01)
 
 ### Bug Fixes
