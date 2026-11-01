@@ -1,0 +1,12 @@
+[req]
+distinguished_name = dn
+prompt = no
+[dn]
+CN = MCP Inspector Test Client
+O = MCP Inspector Tests
+[v3_client]
+basicConstraints = critical,CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = clientAuth
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer

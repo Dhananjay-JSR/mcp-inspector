@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { MCPClient } from '../transport/MCPTransport';
+import { readTlsConfig } from '../transport/tlsSettings';
 
 const RELAY_BASE_URL = 'https://mcp-relay.dhananjaay.dev';
 const RELAY_REPO_URL = 'https://github.com/Dhananjay-JSR/mcp-inspector-relay';
@@ -1236,7 +1237,7 @@ export class MCPInspectorPanel {
 
 	private async handleRemoteConnection(connectionData: any) {
 		try {
-			this._mcpClient = new MCPClient(this._secrets);
+			this._mcpClient = new MCPClient(this._secrets, readTlsConfig());
 
 			const serverUrl = connectionData.serverUrl;
 			const headers: Record<string, string> | undefined =
