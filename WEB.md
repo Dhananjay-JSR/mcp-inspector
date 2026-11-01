@@ -92,6 +92,19 @@ If the server does not send these headers, the browser blocks the request before
 it is sent and the inspector shows a connection error. This is a server-side
 configuration issue, not an extension bug.
 
+### Token storage
+
+Client registrations, PKCE verifiers, tokens, and the callback URL each client
+was registered with go into VS Code SecretStorage, one entry per server, keyed
+by a hash of the server's origin and path. On desktop SecretStorage is backed by
+the OS keychain; in the browser it is VS Code's encrypted storage. Nothing is
+written to workspace files or webview state.
+
+Static `Authorization` headers are kept in the webview's memory for the session
+and are not persisted, so a reload asks for them again.
+
+The relay never stores or caches tokens, authorization codes, or PKCE verifiers.
+
 ## Local servers and localhost
 
 `http://localhost` MCP servers are **best-effort** from the web. The browser can

@@ -1,5 +1,3 @@
-# MCP Inspector
-
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Dhananjay-JSR/mcp-inspector/raw/HEAD/resources/icon-black.png" width="200" height="200">
@@ -58,7 +56,7 @@ Remote endpoints are tried as Streamable HTTP first, then SSE. A URL ending in
 `/sse` is tried as SSE first. The status line names the transport that worked.
 
 Header values are kept in memory for the session and are not written to workspace
-storage, so tokens do not end up on disk.
+storage, so header values do not end up on disk.
 
 ### OAuth sign-in
 
@@ -74,7 +72,7 @@ workspace files or webview state.
 In VS Code for the Web, the server's OAuth endpoints must allow the editor's
 origin via CORS. If they do not, the built-in relay can proxy them; while
 proxying it can see the authorization code and token response but does not store
-or log them. See [WEB.md](WEB.md) for the relay flow, required CORS headers, and
+or log them. See [WEB.md](https://github.com/Dhananjay-JSR/mcp-inspector/blob/main/WEB.md) for the relay flow, required CORS headers, and
 the static-token alternative.
 
 ## Commands
@@ -94,18 +92,22 @@ the same automatic Streamable HTTP / SSE detection. OAuth sign-in works there
 too; STDIO requires the desktop app or Codespaces.
 
 If a server does not allow the browser origin, the inspector offers the
-open-source relay at `https://mcp-relay.dhananjaay.dev`. See [WEB.md](WEB.md) for
+open-source relay at `https://mcp-relay.dhananjaay.dev`. See [WEB.md](https://github.com/Dhananjay-JSR/mcp-inspector/blob/main/WEB.md) for
 CORS requirements, relay usage, localhost notes, and troubleshooting.
 
 ## Contributing
 
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for local setup,
+Contributions are welcome. Read [CONTRIBUTING.md](https://github.com/Dhananjay-JSR/mcp-inspector/blob/main/CONTRIBUTING.md) for local setup,
 commit conventions, and the pull request process.
 
 ## Known Issues
 
 Please report issues on the
 [GitHub issue tracker](https://github.com/Dhananjay-JSR/mcp-inspector/issues).
+
+## License
+
+[MIT](https://github.com/Dhananjay-JSR/mcp-inspector/blob/main/LICENSE)
 
 ## Author
 
