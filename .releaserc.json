@@ -33,7 +33,7 @@
       "@semantic-release/exec",
       {
         "prepareCmd": "mkdir -p dist && yarn vsce package --out \"dist/mcp-inspector-${nextRelease.version}.vsix\"",
-        "publishCmd": "if [ -n \"$VSCE_PAT\" ]; then yarn vsce publish --packagePath \"dist/mcp-inspector-${nextRelease.version}.vsix\"; else echo 'VSCE_PAT is not configured, skipping VS Code Marketplace publish'; fi"
+        "publishCmd": "if [ \"$VSCE_PUBLISH\" = \"true\" ]; then yarn vsce publish --oidc --packagePath \"dist/mcp-inspector-${nextRelease.version}.vsix\"; elif [ -n \"$VSCE_PAT\" ]; then yarn vsce publish --packagePath \"dist/mcp-inspector-${nextRelease.version}.vsix\"; else echo 'Marketplace publishing is not configured, skipping'; fi"
       }
     ],
     [
