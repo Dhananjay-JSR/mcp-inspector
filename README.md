@@ -12,8 +12,8 @@
 [![CI](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/ci.yml/badge.svg)](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/ci.yml)
 [![Conventional Commits](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/commitlint.yml/badge.svg)](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/commitlint.yml)
 [![CodeQL](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/codeql.yml/badge.svg)](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/codeql.yml)
-[![Marketplace](https://img.shields.io/visual-studio-marketplace/v/DhananjaySenday.mcp--inspector?label=marketplace)](https://marketplace.visualstudio.com/items?itemName=DhananjaySenday.mcp--inspector)
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/DhananjaySenday.mcp--inspector)](https://marketplace.visualstudio.com/items?itemName=DhananjaySenday.mcp--inspector)
+[![Marketplace](https://vsmarketplacebadges.dev/version/DhananjaySenday.mcp--inspector.svg)](https://marketplace.visualstudio.com/items?itemName=DhananjaySenday.mcp--inspector)
+[![Installs](https://vsmarketplacebadges.dev/installs/DhananjaySenday.mcp--inspector.svg)](https://marketplace.visualstudio.com/items?itemName=DhananjaySenday.mcp--inspector)
 
 Inspect, debug and interact with [Model Context Protocol](https://modelcontextprotocol.io)
 servers without leaving Visual Studio Code. MCP Inspector connects to a server,
