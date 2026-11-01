@@ -321,6 +321,28 @@ export class MCPInspectorPanel {
 						margin: 0;
 						white-space: pre-wrap;
 					}
+					.header-row {
+						display: flex;
+						gap: 8px;
+						margin-bottom: 8px;
+						align-items: center;
+					}
+					.header-row input {
+						margin-bottom: 0;
+						flex: 1;
+					}
+					.header-row .remove-btn {
+						width: 32px;
+						min-width: 32px;
+						padding: 4px;
+						margin: 0;
+						flex: none;
+					}
+					.add-header-btn {
+						width: auto;
+						margin-top: 4px;
+						padding: 4px 12px;
+					}
 				</style>
 			</head>
 			<body>
@@ -354,6 +376,12 @@ export class MCPInspectorPanel {
 							<label for="serverUrl">Server URL:</label>
 							<input type="text" id="serverUrl" placeholder="Enter SSE server URL">
 						</div>
+						<div class="form-group">
+							<label>Headers:</label>
+							<div id="headersList"></div>
+							<button type="button" class="add-header-btn" onclick="addHeader('sse')">+ Add header</button>
+							<p class="hint">Sent with every request, for example <code>Authorization: Bearer &lt;token&gt;</code>.</p>
+						</div>
 					</div>
 
 					<!-- Streamable HTTP Section -->
@@ -361,6 +389,12 @@ export class MCPInspectorPanel {
 						<div class="form-group">
 							<label for="streamableHttpUrl">Server URL:</label>
 							<input type="text" id="streamableHttpUrl" placeholder="Enter Streamable HTTP server URL (for example https://host/mcp)">
+						</div>
+						<div class="form-group">
+							<label>Headers:</label>
+							<div id="streamableHttpHeadersList"></div>
+							<button type="button" class="add-header-btn" onclick="addHeader('streamable-http')">+ Add header</button>
+							<p class="hint">Sent with every request, for example <code>Authorization: Bearer &lt;token&gt;</code>.</p>
 						</div>
 					</div>
 
@@ -417,6 +451,47 @@ export class MCPInspectorPanel {
 						document.getElementById('streamableHttpSection').classList.toggle('active', transportType === 'streamable-http');
 					}
 
+					function addHeader(section = 'sse', key = '', value = '') {
+						const listId = section === 'streamable-http' ? 'streamableHttpHeadersList' : 'headersList';
+						const list = document.getElementById(listId);
+						const row = document.createElement('div');
+						row.className = 'header-row';
+
+						const keyInput = document.createElement('input');
+						keyInput.type = 'text';
+						keyInput.placeholder = 'Header name';
+						keyInput.value = key;
+
+						const valueInput = document.createElement('input');
+						valueInput.type = 'text';
+						valueInput.placeholder = 'Header value';
+						valueInput.value = value;
+
+						const removeButton = document.createElement('button');
+						removeButton.type = 'button';
+						removeButton.className = 'remove-btn';
+						removeButton.title = 'Remove header';
+						removeButton.textContent = '✕';
+						removeButton.addEventListener('click', () => row.remove());
+
+						row.append(keyInput, valueInput, removeButton);
+						list.appendChild(row);
+					}
+
+					function getHeaders(section = 'sse') {
+						const listId = section === 'streamable-http' ? 'streamableHttpHeadersList' : 'headersList';
+						const rows = document.getElementById(listId).querySelectorAll('.header-row');
+						const headers = {};
+						rows.forEach(row => {
+							const inputs = row.querySelectorAll('input');
+							const key = inputs[0].value.trim();
+							if (key) {
+								headers[key] = inputs[1].value;
+							}
+						});
+						return headers;
+					}
+
 					function hideRelayPrompt() {
 						const prompt = document.getElementById('relayPrompt');
 						if (prompt) {
@@ -445,7 +520,8 @@ export class MCPInspectorPanel {
 							command: 'connect',
 							data: {
 								transport: transportType,
-								serverUrl: relayBase + relayPath + encodeURIComponent(upstream)
+								serverUrl: relayBase + relayPath + encodeURIComponent(upstream),
+								headers: getHeaders(transportType)
 							}
 						});
 					}
@@ -484,7 +560,8 @@ export class MCPInspectorPanel {
 							}
 							connectionData = {
 								transport: 'sse',
-								serverUrl
+								serverUrl,
+								headers: getHeaders('sse')
 							};
 						} else {
 							const serverUrl = getServerUrlFor('streamable-http');
@@ -494,7 +571,8 @@ export class MCPInspectorPanel {
 							}
 							connectionData = {
 								transport: 'streamable-http',
-								serverUrl
+								serverUrl,
+								headers: getHeaders('streamable-http')
 							};
 						}
 
@@ -734,11 +812,15 @@ export class MCPInspectorPanel {
 			// Create a new MCP client for this session
 			this._mcpClient = new MCPClient();
 
-			// Get the server URL
+			// Get the server URL and optional headers
 			const serverUrl = connectionData.serverUrl;
-			
+			const headers: Record<string, string> | undefined =
+				connectionData.headers && Object.keys(connectionData.headers).length > 0
+					? connectionData.headers
+					: undefined;
+
 			// Connect to the server using SSE
-			const result = await this._mcpClient.connectToSSE(serverUrl);
+			const result = await this._mcpClient.connectToSSE(serverUrl, headers);
 			
 			if (result.success) {
 				// Send success message back to webview
@@ -778,8 +860,12 @@ export class MCPInspectorPanel {
 			this._mcpClient = new MCPClient();
 
 			const serverUrl = connectionData.serverUrl;
+			const headers: Record<string, string> | undefined =
+				connectionData.headers && Object.keys(connectionData.headers).length > 0
+					? connectionData.headers
+					: undefined;
 
-			const result = await this._mcpClient.connectToStreamableHTTP(serverUrl);
+			const result = await this._mcpClient.connectToStreamableHTTP(serverUrl, headers);
 
 			if (result.success) {
 				this._panel.webview.postMessage({

@@ -23,10 +23,12 @@ export interface ToolResult {
   error?: string;
 }
 
+export type HeadersMap = Record<string, string>;
+
 export interface IMCPClient {
   connectToStdio(scriptPath: string, args?: string): Promise<ConnectionResult>;
-  connectToSSE(serverUrl: string): Promise<ConnectionResult>;
-  connectToStreamableHTTP(serverUrl: string): Promise<ConnectionResult>;
+  connectToSSE(serverUrl: string, headers?: HeadersMap): Promise<ConnectionResult>;
+  connectToStreamableHTTP(serverUrl: string, headers?: HeadersMap): Promise<ConnectionResult>;
   executeTool(toolName: string, toolArgs: Record<string, unknown>): Promise<ToolResult>;
   disconnect(): Promise<void>;
 }
