@@ -11,6 +11,7 @@ work there, with one hard limit: the browser cannot start local processes, so
 | Connect over SSE | Yes | Yes |
 | Connect over Streamable HTTP | Yes | Yes |
 | Custom headers and bearer tokens | Yes | Yes |
+| OAuth sign-in | Yes | Yes |
 | STDIO servers | Yes | No (disabled) |
 | Local servers | Yes | Best-effort only |
 
@@ -35,12 +36,37 @@ Both remote transports accept headers. Add a row per header, for example:
 Authorization: Bearer <token>
 ```
 
-Headers are sent with every request, including the tool calls. Values are kept
-in memory only: they are not written to workspace storage. When the panel is
-hidden the webview keeps them; after a reload you re-enter them.
+Set **Authentication** to **Static header / token** to use a pre-issued token
+without starting a sign-in flow. Headers are sent with every request, including
+the tool calls. Values are kept in memory only: they are not written to
+workspace storage. When the panel is hidden the webview keeps them; after a
+reload you re-enter them.
 
 The relay forwards `Authorization` upstream, so the same token works when you
 connect through it.
+
+### OAuth-protected servers
+
+OAuth sign-in works in the browser. When a server answers `401`, the inspector
+opens the server's sign-in page, waits for the redirect through VS Code's URI
+handler, and retries the connection. Client registration and tokens are stored
+in VS Code SecretStorage, scoped to the server's origin and path.
+
+The server's OAuth endpoints must allow the editor's browser origin via CORS:
+discovery (`/.well-known/...`), dynamic client registration, and the token
+endpoint. The authorization server must also accept the redirect URI that the
+inspector registers dynamically.
+
+If a server's auth endpoints are not CORS-friendly, connecting through the relay
+also routes discovery, registration, and token requests through
+`/auth?url=`. Some authorization servers send CORS headers on preflight but omit
+them from the real response, which is exactly the case this covers. The relay
+also serves `/oauth/callback`, giving the authorization server a stable HTTPS
+redirect when it rejects the editor's ephemeral callback URL.
+
+The relay sees the authorization code and token response while proxying; it does
+not log them. If that trust model does not fit, select **Static header / token**
+and use a pre-issued bearer token, or use the desktop app.
 
 The server must allow the browser origin with CORS. At minimum:
 
@@ -114,6 +140,7 @@ const relayUrl = `https://mcp-relay.dhananjaay.dev/mcp?url=${encodeURIComponent(
 | `404` or `410` on connect | Wrong endpoint or transport: try `/mcp` (Streamable HTTP) instead of `/sse` |
 | `405 Method Not Allowed` | The URL is the host root; a Streamable HTTP server usually lives at `/mcp` |
 | `401` with a header set | The token or header name is wrong; the value is not shown back to you |
+| "Sign-in did not complete" in the browser | The server's OAuth endpoints likely block the browser origin via CORS; use the desktop app or a pre-issued bearer token |
 
 When in doubt, test the server from `https://vscode.dev` with the relay first. If
 the relay works, the server is reachable and the problem is CORS.

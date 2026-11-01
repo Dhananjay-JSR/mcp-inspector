@@ -23,6 +23,7 @@ separate inspector process required.
 ## Features
 
 - Connect to a local server over **STDIO**, or to a remote URL with automatic **Streamable HTTP → SSE** detection
+- Sign in to OAuth-protected servers in the desktop app or VS Code for the Web, with tokens kept in VS Code SecretStorage
 - Add custom headers per server, including `Authorization: Bearer …` tokens
 - Pick a server script with the native file dialog, or type a command such as `npx`
 - Browse every tool a server exposes, including its input schema
@@ -48,7 +49,9 @@ code --install-extension mcp-inspector-<version>.vsix
 3. Choose the server type:
    - **Local (STDIO)** — pick the server script with **Browse…**, or type a command such as `npx`, then add arguments
    - **Remote (URL)** — enter the endpoint, for example `https://example.com/mcp`
-4. Add headers if the server needs them. For token auth use `Authorization` with `Bearer <token>`.
+4. Choose how to authenticate:
+   - **Automatic (browser sign-in)** — if the server answers `401`, the inspector opens its sign-in page
+   - **Static header / token** — add an `Authorization` header below; no sign-in flow starts
 5. Connect, choose a tool, fill in the generated fields, and run it.
 
 Remote endpoints are tried as Streamable HTTP first, then SSE. A URL ending in
@@ -56,6 +59,28 @@ Remote endpoints are tried as Streamable HTTP first, then SSE. A URL ending in
 
 Header values are kept in memory for the session and are not written to workspace
 storage, so tokens do not end up on disk.
+
+### OAuth sign-in
+
+Some remote servers answer `401` and require OAuth. Connect as usual: the
+inspector opens your browser to the server's sign-in page, waits for the
+redirect, and retries the connection when you finish.
+
+Sign-in is offered for `https://` servers when connecting directly or through
+the relay. To skip sign-in entirely, set **Authentication** to
+**Static header / token** and add an `Authorization: Bearer …` header. The server's client registration and tokens are stored in VS Code
+SecretStorage, scoped to the server's origin and path. They survive reloads but
+are never written to workspace files or webview state. If sign-in fails or is
+cancelled, the error is shown in the panel and you can retry the connection.
+
+On desktop the redirect comes back to a loopback URL. In VS Code for the Web and
+in Codespaces it comes back through VS Code's URI handler, or through the relay's
+`/oauth/callback` when the authorization server rejects the editor's ephemeral
+callback URL. In the browser, the
+server's OAuth endpoints (discovery, registration, and token) must allow the
+editor's origin via CORS, and the authorization server must accept the redirect
+URI the extension registers dynamically. If those endpoints do not allow the
+origin, use the desktop app or a pre-issued bearer token.
 
 ## Commands
 
@@ -70,8 +95,8 @@ storage, so tokens do not end up on disk.
 ## VS Code for the Web
 
 MCP Inspector works in `vscode.dev` and `github.dev` for remote servers, using
-the same automatic Streamable HTTP / SSE detection. STDIO requires the desktop
-app or Codespaces.
+the same automatic Streamable HTTP / SSE detection. OAuth sign-in works there
+too; STDIO requires the desktop app or Codespaces.
 
 If a server does not allow the browser origin, the inspector offers the
 open-source relay at `https://mcp-relay.dhananjaay.dev`. See [WEB.md](WEB.md) for
