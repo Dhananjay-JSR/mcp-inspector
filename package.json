@@ -58,6 +58,7 @@
     "vscode:prepublish": "yarn run compile && yarn run package-web",
     "compile": "tsc -p ./",
     "compile-web": "node esbuild.web.mjs",
+    "compile-web-tests": "node esbuild.web-test.mjs",
     "watch": "tsc -watch -p ./",
     "watch-web": "node esbuild.web.mjs --watch",
     "package-web": "node esbuild.web.mjs --production",
@@ -65,6 +66,7 @@
     "lint": "eslint src",
     "lint:commits": "commitlint --from origin/main --to HEAD --verbose",
     "test": "vscode-test",
+    "test:web": "yarn run compile-web && yarn run compile-web-tests && vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web-test/suite/index.js",
     "package": "vsce package",
     "release": "semantic-release"
   },
@@ -85,6 +87,7 @@
     "@typescript-eslint/parser": "^8.72.1",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
+    "@vscode/test-web": "^0.0.81",
     "@vscode/vsce": "^4.1.0",
     "conventional-changelog-conventionalcommits": "9.3.1",
     "esbuild": "^0.28.2",

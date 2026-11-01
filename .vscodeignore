@@ -1,12 +1,15 @@
 .vscode/**
 .github/**
 .vscode-test/**
+.vscode-test-web/**
+dist/web-test/**
 src/**
 .commitlintrc.json
 .nvmrc
 CONTRIBUTING.md
 WEB.md
 esbuild.web.mjs
+esbuild.web-test.mjs
 patch-sdk.js
 .gitignore
 .yarnrc
