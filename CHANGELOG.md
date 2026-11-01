@@ -1,3 +1,9 @@
+## [0.5.1](https://github.com/[secure]/mcp-[secure]/compare/v0.5.0...v0.5.1) (2026-11-01)
+
+### Bug Fixes
+
+* bundle the extension and shrink the VSIX ([8450044](https://github.com/[secure]/mcp-[secure]/commit/8450044a069828816e13530f0e4ae70655e5390f))
+
 ## [0.5.0](https://github.com/[secure]/mcp-inspector/compare/v0.4.0...v0.5.0) (2026-11-01)
 
 ### Features
