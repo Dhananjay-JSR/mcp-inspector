@@ -58,6 +58,12 @@ code --install-extension mcp-inspector-<version>.vsix
 
 - Visual Studio Code `1.98.0` or newer
 
+## VS Code for the Web
+
+MCP Inspector works in `vscode.dev` and `github.dev` for remote **SSE** servers.
+STDIO requires the desktop app or Codespaces. See [WEB.md](WEB.md) for CORS
+requirements, localhost notes, and relay setup.
+
 ## Contributing
 
 Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for local setup,

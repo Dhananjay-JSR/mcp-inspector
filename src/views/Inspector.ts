@@ -6,9 +6,11 @@ export class MCPInspectorPanel {
 	private readonly _panel: vscode.WebviewPanel;
 	private _disposables: vscode.Disposable[] = [];
     private _mcpClient: MCPClient | null = null;
+    private readonly _isWeb: boolean;
 
 	private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
 		this._panel = panel;
+		this._isWeb = vscode.env.uiKind === vscode.UIKind.Web;
 
 		this._panel.webview.html = this._getRenderer(this._panel.webview);
 
@@ -87,6 +89,15 @@ export class MCPInspectorPanel {
 					}
 					.form-group {
 						margin-bottom: 15px;
+					}
+					.web-note {
+						padding: 10px;
+						margin-bottom: 10px;
+						border-left: 3px solid var(--vscode-inputValidation-warningBorder);
+						background: var(--vscode-inputValidation-warningBackground);
+						color: var(--vscode-inputValidation-warningForeground);
+						border-radius: 3px;
+						font-size: 12px;
 					}
 					label {
 						display: block;
@@ -261,13 +272,14 @@ export class MCPInspectorPanel {
 					<div class="form-group">
 						<label for="transportType">Transport Type:</label>
 						<select id="transportType" onchange="handleTransportChange()">
-							<option value="stdio">STDIO</option>
-							<option value="sse">SSE</option>
+							<option value="stdio" ${this._isWeb ? 'disabled' : 'selected'}>STDIO${this._isWeb ? ' (not available on the web)' : ''}</option>
+							<option value="sse" ${this._isWeb ? 'selected' : ''}>SSE</option>
 						</select>
 					</div>
 
 					<!-- STDIO Section -->
-					<div id="stdioSection" class="transport-section active">
+					<div id="stdioSection" class="transport-section ${this._isWeb ? '' : 'active'}">
+						${this._isWeb ? '<div class="web-note">STDIO is not available in VS Code for the Web. Use the desktop app or Codespaces, or connect to a remote SSE server.</div>' : ''}
 						<div class="form-group">
 							<label for="command">Server Script Path:</label>
 							<input type="text" id="command" placeholder="Enter path to server script (.js or .py)">
@@ -279,7 +291,7 @@ export class MCPInspectorPanel {
 					</div>
 
 					<!-- SSE Section -->
-					<div id="sseSection" class="transport-section">
+					<div id="sseSection" class="transport-section ${this._isWeb ? 'active' : ''}">
 						<div class="form-group">
 							<label for="serverUrl">Server URL:</label>
 							<input type="text" id="serverUrl" placeholder="Enter SSE server URL">
@@ -326,6 +338,7 @@ export class MCPInspectorPanel {
 
 				<script>
 					const vscode = acquireVsCodeApi();
+					const isWeb = ${this._isWeb};
 					let isConnected = false;
 
 					function handleTransportChange() {
@@ -342,6 +355,11 @@ export class MCPInspectorPanel {
 
 						const transportType = document.getElementById('transportType').value;
 						let connectionData = {};
+
+						if (isWeb && transportType === 'stdio') {
+							document.getElementById('status').textContent = 'STDIO is not available in VS Code for the Web.';
+							return;
+						}
 
 						if (transportType === 'stdio') {
 							const command = document.getElementById('command').value;
