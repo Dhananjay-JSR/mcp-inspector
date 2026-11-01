@@ -63,35 +63,19 @@ storage, so tokens do not end up on disk.
 ### OAuth sign-in
 
 Some remote servers answer `401` and require OAuth. Connect as usual: the
-inspector opens your browser to the server's sign-in page, waits for the
-redirect, and retries the connection when you finish.
+inspector opens the server's sign-in page, waits for the redirect, and retries
+the connection when you finish. To skip sign-in, select **Authentication** →
+**Static header / token** and add an `Authorization: Bearer …` header.
 
-Sign-in is offered for `https://` servers, both directly and through the relay.
-To skip it entirely, set **Authentication** to **Static header / token** and add
-an `Authorization: Bearer …` header.
-
-The client registration, PKCE verifier, and tokens are written to VS Code
+Client registrations, PKCE verifiers, and tokens are kept in VS Code
 SecretStorage, scoped to the server's origin and path. They are never written to
-workspace files or webview state. Tokens are reused on later connections while
-the authorization server still accepts the stored registration.
+workspace files or webview state.
 
-On desktop the redirect returns to a loopback URL. In VS Code for the Web it
-returns through VS Code's URI handler. Direct browser connections need CORS on
-the discovery, registration, and token endpoints, and the authorization server
-must accept the redirect URI the extension registers dynamically.
-
-If those endpoints are not CORS-friendly, connect through the relay. The relay
-then proxies discovery, registration, and token requests through `/auth?url=`
-and gives the authorization server a stable HTTPS callback at
-`https://mcp-relay.dhananjaay.dev/oauth/callback/<target>`, which it forwards to
-VS Code. This also covers authorization servers that send CORS headers on
-preflight but omit them from the real response.
-
-While proxying, the relay can see the authorization code, the PKCE verifier, and
-the token response. It does not store or log them. If that trust model does not
-fit, use **Static header / token** with a pre-issued token, or the desktop app,
-where OAuth talks to the server directly. See [WEB.md](WEB.md) for the required
-CORS headers and relay details.
+In VS Code for the Web, the server's OAuth endpoints must allow the editor's
+origin via CORS. If they do not, the built-in relay can proxy them; while
+proxying it can see the authorization code and token response but does not store
+or log them. See [WEB.md](WEB.md) for the relay flow, required CORS headers, and
+the static-token alternative.
 
 ## Commands
 
