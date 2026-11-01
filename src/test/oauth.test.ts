@@ -7,7 +7,7 @@ import {
   SecretStorageOAuthProvider,
   supportsOAuth,
 } from "../auth/oauth";
-import { WebOAuthCallback, withLocalCallbackRoute } from "../auth/oauth.web";
+import { WebOAuthCallback, withUsableCallbackRoute } from "../auth/oauth.web";
 
 class FakeSecretStorage implements vscode.SecretStorage {
   readonly values = new Map<string, string>();
@@ -171,7 +171,7 @@ suite("OAuth Test Suite", () => {
     const local = vscode.Uri.parse(
       "http://localhost:3000/?vscode-reqid=3&vscode-scheme=vscode-insiders",
     );
-    const routed = withLocalCallbackRoute(local);
+    const routed = withUsableCallbackRoute(local);
     assert.ok(routed.startsWith("http://localhost:3000/callback?"));
     assert.ok(routed.includes("vscode-reqid=3"));
     assert.ok(!routed.includes("%3D"), "query separators should be plain");
@@ -180,8 +180,30 @@ suite("OAuth Test Suite", () => {
       "https://vscode.dev/redirect?vscode-reqid=3&vscode-scheme=vscode",
     );
     assert.strictEqual(
-      withLocalCallbackRoute(production),
-      production.toString(),
+      withUsableCallbackRoute(production),
+      "https://vscode.dev/redirect?vscode-reqid=3&vscode-scheme=vscode",
+    );
+  });
+
+  test("decodes a production callback whose query was encoded as one blob", () => {
+    const encoded = vscode.Uri.parse(
+      "https://vscode.dev/callback?vscode-reqid%3D2%26vscode-scheme%3Dvscode%26vscode-authority%3DDhananjaySenday.mcp--inspector%26vscode-path%3D%252Fmcp-oauth-callback",
+    );
+
+    assert.strictEqual(
+      withUsableCallbackRoute(encoded),
+      "https://vscode.dev/callback?vscode-reqid=2&vscode-scheme=vscode&vscode-authority=DhananjaySenday.mcp--inspector&vscode-path=%2Fmcp-oauth-callback",
+    );
+  });
+
+  test("leaves unrelated encoded queries alone", () => {
+    const unrelated = vscode.Uri.parse(
+      "https://example.com/callback?foo%3Dbar",
+    );
+
+    assert.strictEqual(
+      withUsableCallbackRoute(unrelated),
+      unrelated.toString(),
     );
   });
 
