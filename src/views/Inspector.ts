@@ -48,6 +48,9 @@ export class MCPInspectorPanel {
                     case 'pickCommand':
                         await this.handlePickCommand();
                         break;
+                    case 'copyToClipboard':
+                        await vscode.env.clipboard.writeText(message.data?.text ?? '');
+                        break;
                     case 'openRelayRepo':
                         await vscode.env.openExternal(vscode.Uri.parse(RELAY_REPO_URL));
                         break;
@@ -458,12 +461,25 @@ export class MCPInspectorPanel {
 						overflow: auto;
 						display: none;
 					}
+					.response-toolbar {
+						display: flex;
+						align-items: center;
+						justify-content: space-between;
+						gap: 12px;
+						margin-bottom: 8px;
+					}
 					.response-header {
 						font-size: 12px;
 						font-weight: 600;
-						margin-bottom: 8px;
 						text-transform: uppercase;
 						letter-spacing: 0.04em;
+					}
+					.copy-button {
+						display: none;
+						width: auto;
+						margin: 0;
+						padding: 2px 10px;
+						font-size: 12px;
 					}
 					.response-header.success {
 						color: var(--vscode-testing-iconPassed);
@@ -615,7 +631,10 @@ export class MCPInspectorPanel {
 								</div>
 							</form>
 							<div id="responseViewer" class="response-viewer">
-								<div id="responseHeader" class="response-header"></div>
+								<div class="response-toolbar">
+									<div id="responseHeader" class="response-header"></div>
+									<button type="button" id="copyButton" class="copy-button" onclick="copyResult()">Copy</button>
+								</div>
 								<pre id="responseContent"></pre>
 							</div>
 						</div>
@@ -987,6 +1006,7 @@ export class MCPInspectorPanel {
 						const responseHeader = document.getElementById('responseHeader');
 						responseHeader.className = 'response-header';
 						responseHeader.textContent = '';
+						document.getElementById('copyButton').style.display = 'none';
 
 						// Parse the schema
 						const schema = JSON.parse(decodeURIComponent(schemaString));
@@ -1067,6 +1087,31 @@ export class MCPInspectorPanel {
 						}
 					}
 
+					// Pretty-print text content that is itself JSON.
+					function prettyText(value) {
+						if (typeof value !== 'string') {
+							return String(value);
+						}
+						try {
+							return JSON.stringify(JSON.parse(value), null, 2);
+						} catch {
+							return value;
+						}
+					}
+
+					function copyResult() {
+						const responseContent = document.getElementById('responseContent');
+						const copyButton = document.getElementById('copyButton');
+						vscode.postMessage({
+							command: 'copyToClipboard',
+							data: { text: responseContent.textContent || '' }
+						});
+						copyButton.textContent = 'Copied';
+						setTimeout(() => {
+							copyButton.textContent = 'Copy';
+						}, 1200);
+					}
+
 					// Tool results are usually a text content array; show that
 					// instead of raw JSON, and fall back to the JSON otherwise.
 					function formatToolResult(data) {
@@ -1080,7 +1125,7 @@ export class MCPInspectorPanel {
 						if (Array.isArray(content)) {
 							const text = content
 								.filter(part => part && part.type === 'text')
-								.map(part => part.text)
+								.map(part => prettyText(part.text))
 								.join('\\n');
 							if (text) {
 								return text;
@@ -1113,6 +1158,7 @@ export class MCPInspectorPanel {
 								responseHeader.className = 'response-header ' + (failed ? 'error' : 'success');
 								responseHeader.textContent = (failed ? 'Failed' : 'Success')
 									+ (elapsed ? ' · ' + elapsed : '');
+								document.getElementById('copyButton').style.display = 'inline-block';
 								responseViewer.style.display = 'block';
 								responseContent.textContent = formatToolResult(data);
 								responseViewer.scrollIntoView({ block: 'nearest' });
