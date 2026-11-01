@@ -1,3 +1,9 @@
+## [0.3.1](https://github.com/[secure]/mcp-inspector/compare/v0.3.0...v0.3.1) (2026-11-01)
+
+### Bug Fixes
+
+* explain 404 and 405 connection failures ([#32](https://github.com/[secure]/mcp-inspector/issues/32)) ([40d8c56](https://github.com/[secure]/mcp-inspector/commit/40d8c56154456cc8f92e70d14aa2afcf1bdc93fa))
+
 ## [0.3.0](https://github.com/[secure]/mcp-inspector/compare/v0.2.1...v0.3.0) (2026-11-01)
 
 ### Features
