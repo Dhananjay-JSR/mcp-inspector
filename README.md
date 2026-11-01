@@ -84,8 +84,9 @@ the static-token alternative.
 ## Private CAs and client certificates
 
 Remote servers that use a certificate from a private CA, or that require mutual
-TLS (mTLS), work in the desktop app. Point the settings at the PEM files; the
-inspector reads them at connect time and verifies the server as usual.
+TLS (mTLS), work in the desktop app. Open the **TLS** section under **Headers**
+and use **Browse…** for each file. The chosen paths are saved to settings, so
+they persist across sessions and stay visible in the Settings UI.
 
 | Setting | Purpose |
 | --- | --- |
