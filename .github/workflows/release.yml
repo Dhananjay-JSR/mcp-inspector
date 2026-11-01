@@ -12,6 +12,8 @@ on:
 
 permissions:
   contents: write
+  # Required for Marketplace Trusted Publishing (GitHub OIDC).
+  id-token: write
 
 jobs:
   release:
@@ -46,6 +48,10 @@ jobs:
         run: yarn semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Set the VSCE_PUBLISH repository variable to "true" after creating
+          # the Marketplace Trusted Publishing policy for this repository.
+          VSCE_PUBLISH: ${{ vars.VSCE_PUBLISH }}
+          # Optional PAT fallback during the transition away from global PATs.
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
           GIT_AUTHOR_NAME: Dhananjay-JSR
           GIT_AUTHOR_EMAIL: ajaysenday@gmail.com
