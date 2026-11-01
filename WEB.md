@@ -105,6 +105,22 @@ and are not persisted, so a reload asks for them again.
 
 The relay never stores or caches tokens, authorization codes, or PKCE verifiers.
 
+### TLS and client certificates
+
+TLS is handled by the browser, not the extension. Public certificate authorities
+work as they do for any `https://` page. A server certificate signed by a
+private CA fails, and the extension cannot add that CA: browsers keep their
+trust store out of reach of JavaScript on purpose.
+
+mTLS is not supported as a setting here. If a client certificate is already
+installed in the operating system or browser, the browser may offer it when the
+server requests one; the extension cannot supply a certificate or key file.
+
+For a private CA or mTLS, use the desktop app and set
+`mcp--inspector.tls.caFile`, `mcp--inspector.tls.clientCertFile`, and
+`mcp--inspector.tls.clientKeyFile`. See the README for the file format and
+storage behavior.
+
 ## Local servers and localhost
 
 `http://localhost` MCP servers are **best-effort** from the web. The browser can
