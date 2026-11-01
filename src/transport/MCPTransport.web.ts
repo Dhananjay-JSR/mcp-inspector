@@ -12,11 +12,6 @@ import type {
 const STDIO_WEB_ERROR =
   "STDIO is not available in VS Code for the Web. Use the desktop app or Codespaces, or connect to a remote SSE server.";
 
-function browserOrigin(): string {
-  const origin = (globalThis as { location?: { origin?: string } }).location?.origin;
-  return origin && origin !== "null" ? origin : "https://vscode.dev";
-}
-
 function looksLikeNetworkError(error: unknown, message: string): boolean {
   return (
     error instanceof TypeError ||
@@ -61,7 +56,7 @@ export class MCPClient implements IMCPClient {
       const message = error instanceof Error ? error.message : "Unknown error occurred";
       const networkError = looksLikeNetworkError(error, message);
       const hint = networkError
-        ? ` The browser blocks cross-origin requests unless the server allows ${browserOrigin()} via CORS. See WEB.md for the required headers.`
+        ? " The browser blocked this cross-origin request. Allow this editor's origin on the server, or use the relay to connect."
         : "";
       const fullMessage = `${message}${hint}`;
 
