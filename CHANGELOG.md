@@ -1,3 +1,9 @@
+## [0.2.0](https://github.com/[secure]/mcp-inspector/compare/v0.1.0...v0.2.0) (2026-11-01)
+
+### Features
+
+* offer the relay after a failed web connection ([#28](https://github.com/[secure]/mcp-inspector/issues/28)) ([797eb4f](https://github.com/[secure]/mcp-inspector/commit/797eb4fe7c7b002d6067903de7f0fb8430186b99))
+
 ## [0.1.0](https://github.com/[secure]/mcp-inspector/compare/v0.0.4...v0.1.0) (2026-11-01)
 
 ### Features
