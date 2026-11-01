@@ -68,19 +68,6 @@ commit conventions, and the pull request process.
 Please report issues on the
 [GitHub issue tracker](https://github.com/Dhananjay-JSR/mcp-inspector/issues).
 
-## Release Notes
-
-### 0.0.1 (2025-03-29)
-
-Initial release of MCP Inspector with:
-
-- List tools
-- STDIO / SSE transport support
-
-### 0.0.2 (2025-03-29)
-
-- Tool execution support
-
 ## Author
 
 **Dhananjay Senday**
