@@ -4,6 +4,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import * as vscode from "vscode";
 import type {
   ConnectionResult,
+  HeadersMap,
   IMCPClient,
   InputSchema,
   Tool,
@@ -20,6 +21,14 @@ function looksLikeNetworkError(error: unknown, message: string): boolean {
   );
 }
 
+function requestOptions(
+  headers?: HeadersMap,
+): { requestInit: { headers: HeadersMap } } | undefined {
+  return headers && Object.keys(headers).length > 0
+    ? { requestInit: { headers } }
+    : undefined;
+}
+
 export class MCPClient implements IMCPClient {
   private mcp: Client;
   private transport: SSEClientTransport | StreamableHTTPClientTransport | null = null;
@@ -33,13 +42,13 @@ export class MCPClient implements IMCPClient {
     return { success: false, error: STDIO_WEB_ERROR };
   }
 
-  async connectToSSE(serverUrl: string): Promise<ConnectionResult> {
+  async connectToSSE(serverUrl: string, headers?: HeadersMap): Promise<ConnectionResult> {
     try {
       if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
         throw new Error("Server URL must start with http:// or https://");
       }
 
-      this.transport = new SSEClientTransport(new URL(serverUrl));
+      this.transport = new SSEClientTransport(new URL(serverUrl), requestOptions(headers));
       await this.mcp.connect(this.transport);
 
       const toolsResult = await this.mcp.listTools();
@@ -58,13 +67,19 @@ export class MCPClient implements IMCPClient {
     }
   }
 
-  async connectToStreamableHTTP(serverUrl: string): Promise<ConnectionResult> {
+  async connectToStreamableHTTP(
+    serverUrl: string,
+    headers?: HeadersMap,
+  ): Promise<ConnectionResult> {
     try {
       if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
         throw new Error("Server URL must start with http:// or https://");
       }
 
-      this.transport = new StreamableHTTPClientTransport(new URL(serverUrl));
+      this.transport = new StreamableHTTPClientTransport(
+        new URL(serverUrl),
+        requestOptions(headers),
+      );
       await this.mcp.connect(this.transport);
 
       const toolsResult = await this.mcp.listTools();

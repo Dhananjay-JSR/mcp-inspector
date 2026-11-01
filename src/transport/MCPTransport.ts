@@ -5,11 +5,20 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import * as vscode from "vscode";
 import type {
   ConnectionResult,
+  HeadersMap,
   IMCPClient,
   InputSchema,
   Tool,
   ToolResult,
 } from "./types";
+
+function requestOptions(
+  headers?: HeadersMap,
+): { requestInit: { headers: HeadersMap } } | undefined {
+  return headers && Object.keys(headers).length > 0
+    ? { requestInit: { headers } }
+    : undefined;
+}
 
 export class MCPClient implements IMCPClient {
   private mcp: Client;
@@ -58,13 +67,16 @@ export class MCPClient implements IMCPClient {
     }
   }
 
-  async connectToSSE(serverUrl: string): Promise<ConnectionResult> {
+  async connectToSSE(serverUrl: string, headers?: HeadersMap): Promise<ConnectionResult> {
     try {
       if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
         throw new Error("Server URL must start with http:// or https://");
       }
 
-      this.transport = new SSEClientTransport(new URL(serverUrl));
+      this.transport = new SSEClientTransport(
+        new URL(serverUrl),
+        requestOptions(headers),
+      );
 
       await this.mcp.connect(this.transport);
 
@@ -87,13 +99,19 @@ export class MCPClient implements IMCPClient {
     }
   }
 
-  async connectToStreamableHTTP(serverUrl: string): Promise<ConnectionResult> {
+  async connectToStreamableHTTP(
+    serverUrl: string,
+    headers?: HeadersMap,
+  ): Promise<ConnectionResult> {
     try {
       if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
         throw new Error("Server URL must start with http:// or https://");
       }
 
-      this.transport = new StreamableHTTPClientTransport(new URL(serverUrl));
+      this.transport = new StreamableHTTPClientTransport(
+        new URL(serverUrl),
+        requestOptions(headers),
+      );
 
       await this.mcp.connect(this.transport);
 
