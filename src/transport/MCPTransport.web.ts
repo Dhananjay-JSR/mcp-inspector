@@ -99,17 +99,23 @@ export class MCPClient implements IMCPClient {
   }
 
   private failure(error: unknown, transportLabel: string): ConnectionResult {
-    const message = error instanceof Error ? error.message : "Unknown error occurred";
-    const networkError = looksLikeNetworkError(error, message);
-    const hint = networkError
-      ? " The browser blocked this cross-origin request. Allow this editor's origin on the server, or use the relay to connect."
-      : "";
-    const fullMessage = `${message}${hint}`;
+    const raw = error instanceof Error ? error.message : "Unknown error occurred";
+
+    if (looksLikeNetworkError(error, raw)) {
+      // The SDK reports a bare "Failed to fetch" here. Say what the user can act
+      // on and keep the raw text behind a details toggle.
+      const message =
+        "Could not reach the server. The browser blocked this cross-origin request.";
+      vscode.window.showErrorMessage(
+        `Failed to connect to MCP server via ${transportLabel}: ${message}`,
+      );
+      return { success: false, error: message, details: raw, corsLikely: true };
+    }
 
     vscode.window.showErrorMessage(
-      `Failed to connect to MCP server via ${transportLabel}: ${fullMessage}`,
+      `Failed to connect to MCP server via ${transportLabel}: ${raw}`,
     );
-    return { success: false, error: fullMessage, corsLikely: networkError };
+    return { success: false, error: raw };
   }
 
   async executeTool(
