@@ -16,6 +16,18 @@ updates:
         dependency-type: development
       production-dependencies:
         dependency-type: production
+    ignore:
+      # typescript-eslint does not support TypeScript 7 yet.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+      # Keep @types/node aligned with the Node runtime of the oldest supported
+      # VS Code release instead of the newest Node release.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+      # @types/vscode must track engines.vscode, otherwise code can start using
+      # APIs that do not exist in the minimum supported VS Code version.
+      - dependency-name: '@types/vscode'
+        update-types: ['version-update:semver-minor', 'version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /
