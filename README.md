@@ -81,6 +81,43 @@ the static-token alternative.
 | --- | --- |
 | `mcp--inspector.createNewRequest` | Open the MCP Inspector panel and start a new request |
 
+## Private CAs and client certificates
+
+Remote servers that use a certificate from a private CA, or that require mutual
+TLS (mTLS), work in the desktop app. Point the settings at the PEM files; the
+inspector reads them at connect time and verifies the server as usual.
+
+| Setting | Purpose |
+| --- | --- |
+| `mcp--inspector.tls.caFile` | CA bundle (PEM) the server chain is verified against |
+| `mcp--inspector.tls.clientCertFile` | Client certificate (PEM) for mTLS |
+| `mcp--inspector.tls.clientKeyFile` | Private key (PEM) for the client certificate |
+
+Example in `settings.json`:
+
+```json
+{
+  "mcp--inspector.tls.caFile": "/home/me/certs/internal-ca.pem",
+  "mcp--inspector.tls.clientCertFile": "/home/me/certs/client.pem",
+  "mcp--inspector.tls.clientKeyFile": "/home/me/certs/client-key.pem"
+}
+```
+
+Only paths are stored. Certificate and key contents are read from disk when a
+connection starts and are never written to settings, workspace files, or
+SecretStorage. Server verification is never disabled: a private CA widens what
+is trusted, and an unconfigured server still fails.
+
+The client certificate and key must be set together. TLS settings apply to
+Streamable HTTP, SSE, and the OAuth discovery and token requests those
+transports make.
+
+These settings are desktop-only. In VS Code for the Web, the browser owns the
+TLS handshake: it trusts the operating system's certificate store and can offer
+a client certificate already installed there, but a web extension cannot supply
+a CA bundle or key file. See
+[WEB.md](https://github.com/Dhananjay-JSR/mcp-inspector/blob/main/WEB.md).
+
 ## Requirements
 
 - Visual Studio Code `1.98.0` or newer
