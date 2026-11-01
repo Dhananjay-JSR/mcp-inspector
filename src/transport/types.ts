@@ -26,6 +26,7 @@ export interface ToolResult {
 export interface IMCPClient {
   connectToStdio(scriptPath: string, args?: string): Promise<ConnectionResult>;
   connectToSSE(serverUrl: string): Promise<ConnectionResult>;
+  connectToStreamableHTTP(serverUrl: string): Promise<ConnectionResult>;
   executeTool(toolName: string, toolArgs: Record<string, unknown>): Promise<ToolResult>;
   disconnect(): Promise<void>;
 }
