@@ -21,12 +21,13 @@ separate inspector process required.
 ## Features
 
 - Connect to a local server over **STDIO**, or to a remote URL with automatic **Streamable HTTP → SSE** detection
+- Reach servers behind a **private CA** or **mutual TLS** with built-in certificate pickers (desktop)
 - Sign in to OAuth-protected servers in the desktop app or VS Code for the Web, with tokens kept in VS Code SecretStorage
 - Add custom headers per server, including `Authorization: Bearer …` tokens
 - Pick a server script with the native file dialog, or type a command such as `npx`
 - Browse every tool a server exposes, including its input schema
-- Execute tools with form fields generated from the schema and inspect the result
-- Work from a dedicated sidebar view or a full inspector panel
+- Execute tools with schema-generated fields, live progress, elapsed time, pretty-printed JSON results, and one-click copy
+- Launch from the activity-bar view or the Command Palette, and inspect in a full panel
 - Run in the desktop app and in VS Code for the Web, with a relay fallback when a server blocks the browser origin
 
 ## Installation
@@ -40,6 +41,9 @@ or download the latest `.vsix` from
 code --install-extension mcp-inspector-<version>.vsix
 ```
 
+See [CHANGELOG.md](https://github.com/Dhananjay-JSR/mcp-inspector/blob/main/CHANGELOG.md)
+for release notes.
+
 ## Usage
 
 1. Select the **MCP Inspector** icon in the activity bar.
@@ -50,7 +54,10 @@ code --install-extension mcp-inspector-<version>.vsix
 4. Choose how to authenticate:
    - **Automatic (browser sign-in)** — if the server answers `401`, the inspector opens its sign-in page
    - **Static header / token** — add an `Authorization` header below; no sign-in flow starts
-5. Connect, choose a tool, fill in the generated fields, and run it.
+5. **Remote, desktop only:** if the server uses a private CA or mutual TLS,
+   open the **TLS** section under **Headers** and use **Browse…** for the CA
+   bundle, client certificate, and key. The paths are saved automatically.
+6. Connect, choose a tool, fill in the fields, and run it.
 
 Remote endpoints are tried as Streamable HTTP first, then SSE. A URL ending in
 `/sse` is tried as SSE first. The status line names the transport that worked.
@@ -74,12 +81,6 @@ origin via CORS. If they do not, the built-in relay can proxy them; while
 proxying it can see the authorization code and token response but does not store
 or log them. See [WEB.md](https://github.com/Dhananjay-JSR/mcp-inspector/blob/main/WEB.md) for the relay flow, required CORS headers, and
 the static-token alternative.
-
-## Commands
-
-| Command | Description |
-| --- | --- |
-| `mcp--inspector.createNewRequest` | Open the MCP Inspector panel and start a new request |
 
 ## Private CAs and client certificates
 
@@ -119,6 +120,12 @@ a client certificate already installed there, but a web extension cannot supply
 a CA bundle or key file. See
 [WEB.md](https://github.com/Dhananjay-JSR/mcp-inspector/blob/main/WEB.md).
 
+## Commands
+
+| Command | Description |
+| --- | --- |
+| `mcp--inspector.createNewRequest` | Open the MCP Inspector panel and start a new request |
+
 ## Requirements
 
 - Visual Studio Code `1.98.0` or newer
@@ -138,9 +145,19 @@ CORS requirements, relay usage, localhost notes, and troubleshooting.
 Contributions are welcome. Read [CONTRIBUTING.md](https://github.com/Dhananjay-JSR/mcp-inspector/blob/main/CONTRIBUTING.md) for local setup,
 commit conventions, and the pull request process.
 
-## Known Issues
+## Known limitations
 
-Please report issues on the
+- TLS settings are desktop-only. In VS Code for the Web the browser owns the
+  TLS handshake, so a private CA or client certificate cannot be supplied.
+- STDIO servers require the desktop app or Codespaces.
+- OAuth-protected servers in VS Code for the Web must allow the editor origin,
+  or be used through the relay.
+- Tool forms render every schema property as a text field. Nested objects and
+  arrays must be entered as JSON text.
+- One server connection at a time; multi-server workspaces are not supported yet.
+- Tools are listed and called; prompts and resources are not exposed yet.
+
+Report bugs and feature requests on the
 [GitHub issue tracker](https://github.com/Dhananjay-JSR/mcp-inspector/issues).
 
 ## License
