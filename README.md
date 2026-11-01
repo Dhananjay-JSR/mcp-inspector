@@ -9,6 +9,9 @@
   <h1>MCP Inspector</h1>
 </div>
 
+[![CI](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/ci.yml/badge.svg)](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/codeql.yml/badge.svg)](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/codeql.yml)
+
 Easily inspect and interact with MCP servers directly from Visual Studio Code—no need to download external inspectors. This extension provides seamless integration for monitoring and debugging MCP protocols within your development environment.
 
 
@@ -27,6 +30,43 @@ This extension contributes the following commands:
 ## Known Issues
 
 Please report any issues on the [GitHub repository](https://github.com/Dhananjay-JSR/mcp-inspector/issues).
+
+## Development
+
+### Prerequisites
+
+- Node.js 20+
+- Yarn 1.x
+
+### Scripts
+
+| Command | Description |
+| --- | --- |
+| `yarn install` | Install dependencies |
+| `yarn compile` | Compile the extension with TypeScript |
+| `yarn watch` | Compile in watch mode |
+| `yarn lint` | Run ESLint |
+| `yarn test` | Run the VS Code extension test suite |
+| `yarn package` | Build a `.vsix` package |
+
+### Continuous Integration
+
+Every push and pull request to `main` runs the following automated checks:
+
+- **Build & lint** on Ubuntu, macOS, and Windows
+- **Extension tests** on Linux using a virtual display (`xvfb`)
+- **VSIX packaging** with the packaged extension uploaded as a build artifact
+
+CodeQL security analysis runs on pushes, pull requests, and on a weekly schedule. Dependabot keeps npm and GitHub Actions dependencies up to date.
+
+### Releases
+
+Pushing a tag that matches the `package.json` version triggers the release workflow, which packages the extension, publishes it to the VS Code Marketplace when a `VSCE_PAT` repository secret is configured, and creates a GitHub release with the `.vsix` attached.
+
+```bash
+git tag v0.0.4
+git push origin v0.0.4
+```
 
 ## Release Notes
 
