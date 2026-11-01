@@ -297,9 +297,6 @@ export class MCPClient implements IMCPClient {
         },
       );
 
-      if (!result.success) {
-        vscode.window.showErrorMessage(`Failed to connect to MCP server: ${result.error}`);
-      }
       return result;
     } finally {
       callback?.close();
@@ -342,7 +339,6 @@ export class MCPClient implements IMCPClient {
       return { success: true, result };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      vscode.window.showErrorMessage(`Failed to execute tool ${toolName}: ${errorMessage}`);
       return { success: false, error: errorMessage };
     }
   }
