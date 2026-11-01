@@ -1,3 +1,9 @@
+## [0.1.0](https://github.com/[secure]/mcp-inspector/compare/v0.0.4...v0.1.0) (2026-11-01)
+
+### Features
+
+* support VS Code for the Web with SSE ([#27](https://github.com/[secure]/mcp-inspector/issues/27)) ([af34f7c](https://github.com/[secure]/mcp-inspector/commit/af34f7c5a63a6869075396115671d6fd5650b8e9))
+
 ## [0.0.4](https://github.com/Dhananjay-JSR/mcp-inspector/compare/v0.0.3...v0.0.4) (2026-11-01)
 
 ### Bug Fixes
