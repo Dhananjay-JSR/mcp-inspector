@@ -1,3 +1,9 @@
+## [0.4.0](https://github.com/[secure]/mcp-inspector/compare/v0.3.1...v0.4.0) (2026-11-01)
+
+### Features
+
+* detect Streamable HTTP or SSE automatically ([#33](https://github.com/[secure]/mcp-inspector/issues/33)) ([127e881](https://github.com/[secure]/mcp-inspector/commit/127e8813652d58222468de7433df669f11949f59))
+
 ## [0.3.1](https://github.com/[secure]/mcp-inspector/compare/v0.3.0...v0.3.1) (2026-11-01)
 
 ### Bug Fixes
