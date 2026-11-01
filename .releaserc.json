@@ -3,6 +3,7 @@
     "main"
   ],
   "tagFormat": "v${version}",
+  "repositoryUrl": "https://github.com/Dhananjay-JSR/mcp-inspector.git",
   "plugins": [
     [
       "@semantic-release/commit-analyzer",
