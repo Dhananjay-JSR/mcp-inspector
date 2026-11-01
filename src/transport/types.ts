@@ -14,6 +14,8 @@ export interface ConnectionResult {
   success: boolean;
   tools?: Tool[];
   error?: string;
+  /** Raw transport error, shown behind a "Technical details" toggle. */
+  details?: string;
   corsLikely?: boolean;
 }
 
