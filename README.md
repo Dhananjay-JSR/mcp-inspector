@@ -22,11 +22,13 @@ separate inspector process required.
 
 ## Features
 
-- Connect to MCP servers over **STDIO** (a local script) or **SSE** (a URL)
+- Connect over **STDIO**, **SSE**, or **Streamable HTTP**
+- Add custom headers per server, including `Authorization: Bearer …` tokens
+- Pick a server script with the native file dialog, or type a command such as `npx`
 - Browse every tool a server exposes, including its input schema
-- Execute tools with custom JSON arguments and inspect the result
+- Execute tools with form fields generated from the schema and inspect the result
 - Work from a dedicated sidebar view or a full inspector panel
-- Run entirely inside VS Code, with no external tooling
+- Run in the desktop app and in VS Code for the Web, with a relay fallback when a server blocks the browser origin
 
 ## Installation
 
@@ -44,9 +46,14 @@ code --install-extension mcp-inspector-<version>.vsix
 1. Select the **MCP Inspector** icon in the activity bar.
 2. Run the **Create New MCP Request** command from the Command Palette.
 3. Choose the transport:
-   - **STDIO** — enter the path to the MCP server script and optional arguments
-   - **SSE** — enter the server URL
-4. Connect, select a tool, and run it with JSON arguments.
+   - **STDIO** — pick the server script with **Browse…**, or type a command such as `npx`, then add arguments
+   - **SSE** — enter the server URL, for example `https://example.com/sse`
+   - **Streamable HTTP** — enter the server URL, for example `https://example.com/mcp`
+4. Add headers if the server needs them. For token auth use `Authorization` with `Bearer <token>`.
+5. Connect, choose a tool, fill in the generated fields, and run it.
+
+Header values are kept in memory for the session and are not written to workspace
+storage, so tokens do not end up on disk.
 
 ## Commands
 
@@ -60,9 +67,12 @@ code --install-extension mcp-inspector-<version>.vsix
 
 ## VS Code for the Web
 
-MCP Inspector works in `vscode.dev` and `github.dev` for remote **SSE** servers.
-STDIO requires the desktop app or Codespaces. See [WEB.md](WEB.md) for CORS
-requirements, localhost notes, and relay setup.
+MCP Inspector works in `vscode.dev` and `github.dev` for remote **SSE** and
+**Streamable HTTP** servers. STDIO requires the desktop app or Codespaces.
+
+If a server does not allow the browser origin, the inspector offers the
+open-source relay at `https://mcp-relay.dhananjaay.dev`. See [WEB.md](WEB.md) for
+CORS requirements, relay usage, localhost notes, and troubleshooting.
 
 ## Contributing
 
