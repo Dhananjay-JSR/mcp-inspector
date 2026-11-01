@@ -1081,7 +1081,7 @@ export class MCPInspectorPanel {
 							const text = content
 								.filter(part => part && part.type === 'text')
 								.map(part => part.text)
-								.join('\n');
+								.join('\\n');
 							if (text) {
 								return text;
 							}
