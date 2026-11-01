@@ -48,6 +48,7 @@ Please report any issues on the [GitHub repository](https://github.com/Dhananjay
 | `yarn lint` | Run ESLint |
 | `yarn test` | Run the VS Code extension test suite |
 | `yarn package` | Build a `.vsix` package |
+| `yarn release` | Run semantic-release locally (CI does this automatically) |
 
 ### Continuous Integration
 
@@ -59,14 +60,28 @@ Every push and pull request to `main` runs the following automated checks:
 
 CodeQL security analysis runs on pushes, pull requests, and on a weekly schedule. Dependabot keeps npm and GitHub Actions dependencies up to date.
 
-### Releases
+Pull request titles are validated against [Conventional Commits](https://www.conventionalcommits.org/) because squash merges use the PR title as the commit message on `main`.
 
-Pushing a tag that matches the `package.json` version triggers the release workflow, which packages the extension, publishes it to the VS Code Marketplace when a `VSCE_PAT` repository secret is configured, and creates a GitHub release with the `.vsix` attached.
+### Automated Releases
 
-```bash
-git tag v0.0.4
-git push origin v0.0.4
-```
+Releases are fully automated with [semantic-release](https://semantic-release.gitbook.io/). After CI passes on `main`, the release workflow inspects the commits since the last tag and creates a release only when a change warrants one:
+
+| Commit type | Example | Version bump |
+| --- | --- | --- |
+| `fix:` | `fix: handle SSE reconnect` | Patch (`0.0.3` → `0.0.4`) |
+| `feat:` | `feat: add tool call support` | Minor (`0.0.4` → `0.1.0`) |
+| `feat!:` / `BREAKING CHANGE:` | `feat!: redesign transport API` | Major (`0.1.0` → `1.0.0`) |
+| `chore:`, `docs:`, `ci:`, `test:`, `build:` | `docs: update usage` | No release |
+
+The workflow then:
+
+1. Bumps `package.json` and updates `CHANGELOG.md`
+2. Commits the release and creates the `v<version>` tag
+3. Builds `mcp-inspector-<version>.vsix`
+4. Publishes a GitHub release with the VSIX attached
+5. Publishes to the VS Code Marketplace when a `VSCE_PAT` repository secret is configured
+
+No manual tagging is required. Configure `VSCE_PAT` under **Settings → Secrets and variables → Actions** to also publish to the Marketplace.
 
 ## Release Notes
 
