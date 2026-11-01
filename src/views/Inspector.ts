@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { MCPClient } from '../transport/MCPTransport';
-import { readTlsConfig } from '../transport/tlsSettings';
+import { normalizeTlsConfig, readTlsConfig, saveTlsConfig } from '../transport/tlsSettings';
 
 const RELAY_BASE_URL = 'https://mcp-relay.dhananjaay.dev';
 const RELAY_REPO_URL = 'https://github.com/Dhananjay-JSR/mcp-inspector-relay';
@@ -55,11 +55,34 @@ export class MCPInspectorPanel {
                     case 'openRelayRepo':
                         await vscode.env.openExternal(vscode.Uri.parse(RELAY_REPO_URL));
                         break;
+                    case 'ready':
+                        await this.postTlsConfig();
+                        break;
+                    case 'pickTlsFile':
+                        await this.handlePickTlsFile(message.data?.field);
+                        break;
+                    case 'saveTlsConfig':
+                        if (!this._isWeb) {
+                            await saveTlsConfig(normalizeTlsConfig(message.data));
+                        }
+                        break;
 				}
 			},
 			null,
 			this._disposables
 		);
+
+		if (!this._isWeb) {
+			vscode.workspace.onDidChangeConfiguration(
+				(event) => {
+					if (event.affectsConfiguration('mcp--inspector.tls')) {
+						void this.postTlsConfig();
+					}
+				},
+				null,
+				this._disposables,
+			);
+		}
 	}
 
 	public static createOrShow(extensionUri: vscode.Uri, secrets?: vscode.SecretStorage) {
@@ -105,6 +128,39 @@ export class MCPInspectorPanel {
 						</div>
 					</div>`
 			: '';
+
+		const tlsSection = this._isWeb
+			? ''
+			: `
+						<div class="form-group tls-group">
+							<label>TLS <span class="tls-badge">optional · desktop</span></label>
+							<p class="hint">For servers with a private CA or mutual TLS. Paths are saved to settings; file contents stay on this machine.</p>
+							<div class="tls-row">
+								<label for="tlsCaFile">Certificate authority (CA)</label>
+								<div class="input-with-button">
+									<input type="text" id="tlsCaFile" onchange="tlsChanged()" placeholder="/path/to/ca.pem" spellcheck="false">
+									<button type="button" onclick="pickTlsFile('ca')">Browse…</button>
+									<button type="button" class="clear-btn" title="Clear CA bundle" onclick="clearTlsFile('ca')">✕</button>
+								</div>
+							</div>
+							<div class="tls-row">
+								<label for="tlsClientCertFile">Client certificate</label>
+								<div class="input-with-button">
+									<input type="text" id="tlsClientCertFile" onchange="tlsChanged()" placeholder="/path/to/client.pem" spellcheck="false">
+									<button type="button" onclick="pickTlsFile('cert')">Browse…</button>
+									<button type="button" class="clear-btn" title="Clear client certificate" onclick="clearTlsFile('cert')">✕</button>
+								</div>
+							</div>
+							<div class="tls-row">
+								<label for="tlsClientKeyFile">Client private key</label>
+								<div class="input-with-button">
+									<input type="text" id="tlsClientKeyFile" onchange="tlsChanged()" placeholder="/path/to/client-key.pem" spellcheck="false">
+									<button type="button" onclick="pickTlsFile('key')">Browse…</button>
+									<button type="button" class="clear-btn" title="Clear client key" onclick="clearTlsFile('key')">✕</button>
+								</div>
+							</div>
+							<p class="hint">The client certificate and key must be set together.</p>
+						</div>`;
 
 		return `
         <!DOCTYPE html>
@@ -277,6 +333,44 @@ export class MCPInspectorPanel {
 					}
 					.input-with-button button:hover {
 						background-color: var(--vscode-button-secondaryHoverBackground);
+					}
+					.tls-group {
+						padding: 12px;
+						border: 1px solid var(--vscode-input-border, transparent);
+						border-radius: 4px;
+						background: var(--vscode-editorWidget-background, transparent);
+					}
+					.tls-group > .hint {
+						margin: 0 0 12px;
+					}
+					.tls-badge {
+						margin-left: 6px;
+						font-size: 10px;
+						font-weight: 400;
+						color: var(--vscode-descriptionForeground);
+					}
+					.tls-row {
+						margin-top: 10px;
+					}
+					.tls-row label {
+						margin-bottom: 4px;
+						font-size: 11px;
+						color: var(--vscode-descriptionForeground);
+					}
+					.tls-row .input-with-button input {
+						font-family: var(--vscode-editor-font-family, monospace);
+						font-size: 11px;
+					}
+					.input-with-button .clear-btn {
+						width: 30px;
+						min-width: 30px;
+						padding: 4px;
+						background-color: transparent;
+						color: var(--vscode-icon-foreground, var(--vscode-foreground));
+						border-color: transparent;
+					}
+					.input-with-button .clear-btn:hover {
+						background-color: var(--vscode-toolbar-hoverBackground);
 					}
 					.transport-section {
 						display: none;
@@ -589,6 +683,7 @@ export class MCPInspectorPanel {
 							<button type="button" class="add-header-btn" onclick="addHeader()">+ Add header</button>
 							<p class="hint">Sent with every request, for example <code>Authorization: Bearer &lt;token&gt;</code>.</p>
 						</div>
+						${tlsSection}
 					</div>
 
 					<div class="button-row">
@@ -702,7 +797,10 @@ export class MCPInspectorPanel {
 							command: document.getElementById('command').value,
 							scriptArgs: document.getElementById('scriptArgs').value,
 							serverUrl: document.getElementById('serverUrl').value,
-							authMode: document.getElementById('authMode').value
+							authMode: document.getElementById('authMode').value,
+							tlsCaFile: tlsValue('tlsCaFile'),
+							tlsClientCertFile: tlsValue('tlsClientCertFile'),
+							tlsClientKeyFile: tlsValue('tlsClientKeyFile')
 						});
 					}
 
@@ -735,6 +833,12 @@ export class MCPInspectorPanel {
 						if (state.authMode) {
 							document.getElementById('authMode').value = state.authMode;
 						}
+						['tlsCaFile', 'tlsClientCertFile', 'tlsClientKeyFile'].forEach(id => {
+							const input = document.getElementById(id);
+							if (input && state[id]) {
+								input.value = state[id];
+							}
+						});
 						handleAuthModeChange();
 					}
 
@@ -785,6 +889,37 @@ export class MCPInspectorPanel {
 						return headers;
 					}
 
+					function tlsValue(id) {
+						const field = document.getElementById(id);
+						return field ? field.value.trim() : '';
+					}
+
+					function getTlsConfig() {
+						return {
+							caPath: tlsValue('tlsCaFile') || undefined,
+							certPath: tlsValue('tlsClientCertFile') || undefined,
+							keyPath: tlsValue('tlsClientKeyFile') || undefined
+						};
+					}
+
+					function pickTlsFile(field) {
+						vscode.postMessage({ command: 'pickTlsFile', data: { field } });
+					}
+
+					function clearTlsFile(field) {
+						const ids = { ca: 'tlsCaFile', cert: 'tlsClientCertFile', key: 'tlsClientKeyFile' };
+						const input = document.getElementById(ids[field]);
+						if (input) {
+							input.value = '';
+							tlsChanged();
+						}
+					}
+
+					function tlsChanged() {
+						saveState();
+						vscode.postMessage({ command: 'saveTlsConfig', data: getTlsConfig() });
+					}
+
 					function hideRelayPrompt() {
 						const prompt = document.getElementById('relayPrompt');
 						if (prompt) {
@@ -812,6 +947,7 @@ export class MCPInspectorPanel {
 								serverUrl: upstream,
 								authMode: document.getElementById('authMode').value,
 								headers: getHeaders(),
+								tls: isWeb ? undefined : getTlsConfig(),
 								relayBase
 							}
 						});
@@ -856,7 +992,8 @@ export class MCPInspectorPanel {
 								transport: 'remote',
 								serverUrl,
 								authMode: document.getElementById('authMode').value,
-								headers: getHeaders()
+								headers: getHeaders(),
+								tls: isWeb ? undefined : getTlsConfig()
 							};
 						}
 
@@ -984,6 +1121,30 @@ export class MCPInspectorPanel {
 								const commandInput = document.getElementById('command');
 								commandInput.value = message.data.path;
 								commandInput.dispatchEvent(new Event('input'));
+								break;
+							}
+							case 'tlsFilePicked': {
+								const ids = { ca: 'tlsCaFile', cert: 'tlsClientCertFile', key: 'tlsClientKeyFile' };
+								const input = document.getElementById(ids[message.data.field]);
+								if (input) {
+									input.value = message.data.path;
+									tlsChanged();
+								}
+								break;
+							}
+							case 'tlsConfig': {
+								const ids = {
+									caPath: 'tlsCaFile',
+									certPath: 'tlsClientCertFile',
+									keyPath: 'tlsClientKeyFile'
+								};
+								Object.entries(ids).forEach(([key, id]) => {
+									const input = document.getElementById(id);
+									if (input) {
+										input.value = message.data[key] || '';
+									}
+								});
+								saveState();
 								break;
 							}
 						}
@@ -1170,6 +1331,7 @@ export class MCPInspectorPanel {
 
 					restoreState();
 					_initialized = true;
+					vscode.postMessage({ command: 'ready' });
 					['command', 'scriptArgs', 'serverUrl'].forEach(id => {
 						document.getElementById(id).addEventListener('input', saveState);
 					});
@@ -1237,7 +1399,13 @@ export class MCPInspectorPanel {
 
 	private async handleRemoteConnection(connectionData: any) {
 		try {
-			this._mcpClient = new MCPClient(this._secrets, readTlsConfig());
+			const tls = connectionData.tls
+				? normalizeTlsConfig(connectionData.tls)
+				: readTlsConfig();
+			if (connectionData.tls) {
+				await saveTlsConfig(tls);
+			}
+			this._mcpClient = new MCPClient(this._secrets, tls);
 
 			const serverUrl = connectionData.serverUrl;
 			const headers: Record<string, string> | undefined =
@@ -1287,6 +1455,48 @@ export class MCPInspectorPanel {
 					success: false,
 					error: error instanceof Error ? error.message : 'Unknown error occurred'
 				}
+			});
+		}
+	}
+
+	private async postTlsConfig() {
+		if (this._isWeb) {
+			return;
+		}
+		this._panel.webview.postMessage({
+			command: 'tlsConfig',
+			data: readTlsConfig(),
+		});
+	}
+
+	private async handlePickTlsFile(field: unknown) {
+		if (this._isWeb || (field !== 'ca' && field !== 'cert' && field !== 'key')) {
+			return;
+		}
+
+		const labels = {
+			ca: { open: 'Use CA bundle', title: 'Select the certificate authority bundle' },
+			cert: { open: 'Use client certificate', title: 'Select the client certificate' },
+			key: { open: 'Use client key', title: 'Select the client private key' },
+		} as const;
+
+		const selection = await vscode.window.showOpenDialog({
+			canSelectFiles: true,
+			canSelectFolders: false,
+			canSelectMany: false,
+			openLabel: labels[field].open,
+			title: labels[field].title,
+			filters: {
+				'PEM files': ['pem', 'crt', 'cer', 'key'],
+				'All files': ['*'],
+			},
+		});
+
+		const picked = selection?.[0];
+		if (picked) {
+			this._panel.webview.postMessage({
+				command: 'tlsFilePicked',
+				data: { field, path: picked.fsPath },
 			});
 		}
 	}
