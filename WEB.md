@@ -48,25 +48,29 @@ connect through it.
 ### OAuth-protected servers
 
 OAuth sign-in works in the browser. When a server answers `401`, the inspector
-opens the server's sign-in page, waits for the redirect through VS Code's URI
-handler, and retries the connection. Client registration and tokens are stored
-in VS Code SecretStorage, scoped to the server's origin and path.
+discovers its authorization server, registers a client with PKCE, opens the
+sign-in page, waits for the redirect, and retries with the access token. The
+client registration, PKCE verifier, and tokens are stored in VS Code
+SecretStorage, scoped to the server's origin and path. The callback URL is stored
+with the registration, so a changed callback causes a fresh registration instead
+of reusing a client the authorization server will reject.
 
-The server's OAuth endpoints must allow the editor's browser origin via CORS:
-discovery (`/.well-known/...`), dynamic client registration, and the token
-endpoint. The authorization server must also accept the redirect URI that the
-inspector registers dynamically.
+**Direct connections** need CORS on every endpoint the browser calls: protected
+resource metadata (`/.well-known/oauth-protected-resource`), authorization
+server metadata (`/.well-known/oauth-authorization-server`), dynamic client
+registration, and the token endpoint. The authorization server must also accept
+the editor's external callback URI, which the inspector registers dynamically.
 
-If a server's auth endpoints are not CORS-friendly, connecting through the relay
-also routes discovery, registration, and token requests through
-`/auth?url=`. Some authorization servers send CORS headers on preflight but omit
-them from the real response, which is exactly the case this covers. The relay
-also serves `/oauth/callback`, giving the authorization server a stable HTTPS
-redirect when it rejects the editor's ephemeral callback URL.
+**Through the relay**, those requests go through `/auth?url=` and the client
+registers `https://mcp-relay.dhananjaay.dev/oauth/callback/<base64url target>`
+instead. The relay owns the CORS headers, and its callback is a stable HTTPS
+redirect that it forwards to VS Code. This covers authorization servers that
+send CORS headers on preflight but omit them from the real response.
 
-The relay sees the authorization code and token response while proxying; it does
-not log them. If that trust model does not fit, select **Static header / token**
-and use a pre-issued bearer token, or use the desktop app.
+While proxying, the relay can see the authorization code, the PKCE verifier, and
+the token response. It does not store or log them. If that trust model does not
+fit, select **Static header / token** and use a pre-issued bearer token, or use
+the desktop app, where OAuth talks to the server directly.
 
 The server must allow the browser origin with CORS. At minimum:
 

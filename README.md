@@ -66,21 +66,32 @@ Some remote servers answer `401` and require OAuth. Connect as usual: the
 inspector opens your browser to the server's sign-in page, waits for the
 redirect, and retries the connection when you finish.
 
-Sign-in is offered for `https://` servers when connecting directly or through
-the relay. To skip sign-in entirely, set **Authentication** to
-**Static header / token** and add an `Authorization: Bearer …` header. The server's client registration and tokens are stored in VS Code
-SecretStorage, scoped to the server's origin and path. They survive reloads but
-are never written to workspace files or webview state. If sign-in fails or is
-cancelled, the error is shown in the panel and you can retry the connection.
+Sign-in is offered for `https://` servers, both directly and through the relay.
+To skip it entirely, set **Authentication** to **Static header / token** and add
+an `Authorization: Bearer …` header.
 
-On desktop the redirect comes back to a loopback URL. In VS Code for the Web and
-in Codespaces it comes back through VS Code's URI handler, or through the relay's
-`/oauth/callback` when the authorization server rejects the editor's ephemeral
-callback URL. In the browser, the
-server's OAuth endpoints (discovery, registration, and token) must allow the
-editor's origin via CORS, and the authorization server must accept the redirect
-URI the extension registers dynamically. If those endpoints do not allow the
-origin, use the desktop app or a pre-issued bearer token.
+The client registration, PKCE verifier, and tokens are written to VS Code
+SecretStorage, scoped to the server's origin and path. They are never written to
+workspace files or webview state. Tokens are reused on later connections while
+the authorization server still accepts the stored registration.
+
+On desktop the redirect returns to a loopback URL. In VS Code for the Web it
+returns through VS Code's URI handler. Direct browser connections need CORS on
+the discovery, registration, and token endpoints, and the authorization server
+must accept the redirect URI the extension registers dynamically.
+
+If those endpoints are not CORS-friendly, connect through the relay. The relay
+then proxies discovery, registration, and token requests through `/auth?url=`
+and gives the authorization server a stable HTTPS callback at
+`https://mcp-relay.dhananjaay.dev/oauth/callback/<target>`, which it forwards to
+VS Code. This also covers authorization servers that send CORS headers on
+preflight but omit them from the real response.
+
+While proxying, the relay can see the authorization code, the PKCE verifier, and
+the token response. It does not store or log them. If that trust model does not
+fit, use **Static header / token** with a pre-issued token, or the desktop app,
+where OAuth talks to the server directly. See [WEB.md](WEB.md) for the required
+CORS headers and relay details.
 
 ## Commands
 
