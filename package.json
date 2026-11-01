@@ -5,6 +5,7 @@
   "icon": "resources/icon-black.png",
   "description": "Easily inspect and interact with MCP servers directly from Visual Studio Code—no need to download external inspectors. This extension provides seamless integration for monitoring and debugging MCP protocols within your development environment",
   "version": "0.5.0",
+  "license": "MIT",
   "packageManager": "yarn@1.22.22",
   "repository": {
     "type": "git",
@@ -24,6 +25,22 @@
     "AI",
     "Debuggers",
     "Testing"
+  ],
+  "keywords": [
+    "mcp",
+    "model context protocol",
+    "mcp server",
+    "mcp client",
+    "inspector",
+    "debugging",
+    "tools",
+    "ai",
+    "llm",
+    "agent",
+    "oauth",
+    "sse",
+    "streamable http",
+    "remote server"
   ],
   "activationEvents": [],
   "main": "./out/extension.js",
@@ -55,7 +72,9 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "yarn run compile && yarn run package-web",
+    "vscode:prepublish": "yarn run compile && yarn run package-node && yarn run package-web",
+    "bundle": "node esbuild.node.mjs",
+    "package-node": "node esbuild.node.mjs --production",
     "compile": "tsc -p ./",
     "compile-web": "node esbuild.web.mjs",
     "compile-web-tests": "node esbuild.web-test.mjs",
