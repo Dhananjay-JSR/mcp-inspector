@@ -3,6 +3,7 @@ import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import * as vscode from "vscode";
 import { describeFailure } from "./errorHints";
+import { connectWithFallback } from "./remote";
 import type {
   ConnectionResult,
   HeadersMap,
@@ -57,6 +58,7 @@ export class MCPClient implements IMCPClient {
         throw new Error("Server URL must start with http:// or https://");
       }
 
+      this.mcp = new Client({ name: "mcp-debugger-vscode-extension", version: "1.0.0" });
       this.transport = new SSEClientTransport(new URL(serverUrl), requestOptions(headers));
       await this.mcp.connect(this.transport);
 
@@ -85,6 +87,7 @@ export class MCPClient implements IMCPClient {
         throw new Error("Server URL must start with http:// or https://");
       }
 
+      this.mcp = new Client({ name: "mcp-debugger-vscode-extension", version: "1.0.0" });
       this.transport = new StreamableHTTPClientTransport(
         new URL(serverUrl),
         requestOptions(headers),
@@ -107,6 +110,23 @@ export class MCPClient implements IMCPClient {
     }
   }
 
+  async connectToRemote(
+    serverUrl: string,
+    headers?: HeadersMap,
+    relayBase?: string,
+  ): Promise<ConnectionResult> {
+    const result = await connectWithFallback(serverUrl, { relayBase }, (transport, target) =>
+      transport === "sse"
+        ? this.connectToSSE(target, headers)
+        : this.connectToStreamableHTTP(target, headers),
+    );
+
+    if (!result.success) {
+      vscode.window.showErrorMessage(`Failed to connect to MCP server: ${result.error}`);
+    }
+    return result;
+  }
+
   private failure(
     error: unknown,
     transportLabel: string,
@@ -119,9 +139,6 @@ export class MCPClient implements IMCPClient {
       looksLikeNetworkError(error, raw),
     );
 
-    vscode.window.showErrorMessage(
-      `Failed to connect to MCP server via ${transportLabel}: ${failure.message}`,
-    );
     return {
       success: false,
       error: failure.message,

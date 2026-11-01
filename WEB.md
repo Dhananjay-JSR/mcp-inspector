@@ -18,11 +18,14 @@ work there, with one hard limit: the browser cannot start local processes, so
 
 1. Open `https://vscode.dev` and install MCP Inspector.
 2. Run **Create New MCP Request**.
-3. Choose **SSE** or **Streamable HTTP** and enter the server URL.
+3. Choose **Remote (URL)** and enter the server URL.
+
+The transport is detected automatically: Streamable HTTP first, SSE first when
+the URL path ends in `/sse`. The status line names the transport that worked.
 
 Most public servers now use Streamable HTTP on a path such as `/mcp`. Legacy
-SSE servers use a path such as `/sse`. If one returns `404` or `410`, try the
-other.
+SSE servers use a path such as `/sse`. If one returns `404`, `405`, or `410`,
+the inspector tries the other transport before reporting a failure.
 
 ### Custom headers and bearer tokens
 
@@ -77,8 +80,8 @@ the relay after a failed direct connection:
 3. Accept, and the inspector retries through the read-only relay server at
    `https://mcp-relay.dhananjaay.dev`.
 
-The extension composes the relay URL for you, using the path that matches the
-transport:
+The extension composes the relay URL for you and tries both paths, starting
+with the transport the URL suggests:
 
 ```text
 SSE              https://mcp-relay.dhananjaay.dev/sse?url=<encoded upstream>

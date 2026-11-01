@@ -36,13 +36,11 @@ suite('Extension Test Suite', () => {
 		assert.ok(panel, 'the inspector panel was not created');
 
 		const handlers = panel as unknown as {
-			handleSSEConnection(data: unknown): Promise<void>;
-			handleStreamableHTTPConnection(data: unknown): Promise<void>;
+			handleRemoteConnection(data: unknown): Promise<void>;
 			handleMCPDisconnect(): Promise<void>;
 		};
 
-		await handlers.handleSSEConnection({ serverUrl: 'not-a-url', headers: {} });
-		await handlers.handleStreamableHTTPConnection({ serverUrl: 'not-a-url', headers: {} });
+		await handlers.handleRemoteConnection({ serverUrl: 'not-a-url', headers: {} });
 		await handlers.handleMCPDisconnect();
 	});
 
