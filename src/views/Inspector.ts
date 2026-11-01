@@ -10,10 +10,16 @@ export class MCPInspectorPanel {
 	private _disposables: vscode.Disposable[] = [];
     private _mcpClient: MCPClient | null = null;
     private readonly _isWeb: boolean;
+    private readonly _secrets?: vscode.SecretStorage;
 
-	private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+	private constructor(
+		panel: vscode.WebviewPanel,
+		extensionUri: vscode.Uri,
+		secrets?: vscode.SecretStorage,
+	) {
 		this._panel = panel;
 		this._isWeb = vscode.env.uiKind === vscode.UIKind.Web;
+		this._secrets = secrets;
 
 		this._panel.webview.html = this._getRenderer(this._panel.webview);
 
@@ -52,7 +58,7 @@ export class MCPInspectorPanel {
 		);
 	}
 
-	public static createOrShow(extensionUri: vscode.Uri) {
+	public static createOrShow(extensionUri: vscode.Uri, secrets?: vscode.SecretStorage) {
 		const column = vscode.window.activeTextEditor
 			? vscode.window.activeTextEditor.viewColumn
 			: undefined;
@@ -78,7 +84,7 @@ export class MCPInspectorPanel {
 			}
 		);
 
-		MCPInspectorPanel.currentPanel = new MCPInspectorPanel(panel, extensionUri);
+		MCPInspectorPanel.currentPanel = new MCPInspectorPanel(panel, extensionUri, secrets);
 	}
 
 	private _getRenderer(webview: vscode.Webview) {
@@ -530,6 +536,14 @@ export class MCPInspectorPanel {
 							<p class="hint">The transport is detected automatically: Streamable HTTP first, SSE for <code>/sse</code> endpoints.</p>
 						</div>
 						<div class="form-group">
+							<label for="authMode">Authentication</label>
+							<select id="authMode" onchange="handleAuthModeChange()">
+								<option value="oauth">Automatic (browser sign-in)</option>
+								<option value="static">Static header / token</option>
+							</select>
+							<p class="hint" id="authHint">If the server answers 401, the inspector opens its sign-in page.</p>
+						</div>
+						<div class="form-group">
 							<label>Headers</label>
 							<div id="headersList"></div>
 							<button type="button" class="add-header-btn" onclick="addHeader()">+ Add header</button>
@@ -626,6 +640,14 @@ export class MCPInspectorPanel {
 						saveState();
 					}
 
+					function handleAuthModeChange() {
+						const mode = document.getElementById('authMode').value;
+						document.getElementById('authHint').textContent = mode === 'static'
+							? 'Add an Authorization header below. The inspector will not start a sign-in flow.'
+							: 'If the server answers 401, the inspector opens its sign-in page.';
+						saveState();
+					}
+
 					function saveState() {
 						if (!_initialized) {
 							return;
@@ -634,7 +656,8 @@ export class MCPInspectorPanel {
 							transportType: document.getElementById('transportType').value,
 							command: document.getElementById('command').value,
 							scriptArgs: document.getElementById('scriptArgs').value,
-							serverUrl: document.getElementById('serverUrl').value
+							serverUrl: document.getElementById('serverUrl').value,
+							authMode: document.getElementById('authMode').value
 						});
 					}
 
@@ -664,6 +687,10 @@ export class MCPInspectorPanel {
 						if (savedUrl) {
 							document.getElementById('serverUrl').value = savedUrl;
 						}
+						if (state.authMode) {
+							document.getElementById('authMode').value = state.authMode;
+						}
+						handleAuthModeChange();
 					}
 
 					function pickCommand() {
@@ -738,6 +765,7 @@ export class MCPInspectorPanel {
 							data: {
 								transport: 'remote',
 								serverUrl: upstream,
+								authMode: document.getElementById('authMode').value,
 								headers: getHeaders(),
 								relayBase
 							}
@@ -782,6 +810,7 @@ export class MCPInspectorPanel {
 							connectionData = {
 								transport: 'remote',
 								serverUrl,
+								authMode: document.getElementById('authMode').value,
 								headers: getHeaders()
 							};
 						}
@@ -868,6 +897,10 @@ export class MCPInspectorPanel {
 						const message = event.data;
 						switch (message.command) {
 							case 'connectionStatus':
+								if (message.data.phase) {
+									setStatus('connecting', message.data.phase);
+									break;
+								}
 								if (message.data.disconnected) {
 									updateConnectionUI(false);
 									hideRelayPrompt();
@@ -885,13 +918,18 @@ export class MCPInspectorPanel {
 									const error = message.data.error || 'Unknown error';
 									const serverUrl = getServerUrl();
 									const alreadyRelay = serverUrl.startsWith(relayBase);
-									const offerRelay = isWeb && message.data.corsLikely && !relayAttempted && !alreadyRelay;
+									const offerRelay = isWeb && message.data.corsLikely && !message.data.authRequired && !relayAttempted && !alreadyRelay;
 									const details = message.data.details && message.data.details !== error
 										? message.data.details
 										: undefined;
+									const authMessage = message.data.authRequired
+										? (document.getElementById('authMode').value === 'static'
+											? 'This server requires authentication. Add an Authorization header, or switch Authentication to Automatic.'
+											: 'Sign-in did not complete. Try connecting again, or check that the server allows this browser origin for its OAuth endpoints.')
+										: null;
 
 									// The callout explains the failure when it is shown, so do not repeat it here.
-									setStatus('error', offerRelay ? 'Connection failed.' : error, details);
+									setStatus('error', offerRelay ? 'Connection failed.' : (authMessage || error), details);
 									if (offerRelay) {
 										document.getElementById('relayPrompt').style.display = 'block';
 									}
@@ -1024,7 +1062,7 @@ export class MCPInspectorPanel {
     private async handleStdioConnection(connectionData: any) {
 		try {
 			// Create a new MCP client for this session
-			this._mcpClient = new MCPClient();
+			this._mcpClient = new MCPClient(this._secrets);
 
 			const serverScriptPath = connectionData.command;
 			const scriptArgs = connectionData.args || '';
@@ -1066,7 +1104,7 @@ export class MCPInspectorPanel {
 
 	private async handleRemoteConnection(connectionData: any) {
 		try {
-			this._mcpClient = new MCPClient();
+			this._mcpClient = new MCPClient(this._secrets);
 
 			const serverUrl = connectionData.serverUrl;
 			const headers: Record<string, string> | undefined =
@@ -1074,8 +1112,20 @@ export class MCPInspectorPanel {
 					? connectionData.headers
 					: undefined;
 			const relayBase: string | undefined = connectionData.relayBase;
+			const authMode = connectionData.authMode === 'static' ? 'static' : 'oauth';
 
-			const result = await this._mcpClient.connectToRemote(serverUrl, headers, relayBase);
+			const result = await this._mcpClient.connectToRemote(
+				serverUrl,
+				headers,
+				relayBase,
+				(phase) => {
+					this._panel.webview.postMessage({
+						command: 'connectionStatus',
+						data: { phase },
+					});
+				},
+				authMode,
+			);
 
 			if (result.success) {
 				this._panel.webview.postMessage({

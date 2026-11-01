@@ -11,7 +11,7 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 	context.subscriptions.push(viewRegisterer);
 	const createNewRequestCommand = vscode.commands.registerCommand('mcp--inspector.createNewRequest', () => {
-		MCPInspectorPanel.createOrShow(context.extensionUri);
+		MCPInspectorPanel.createOrShow(context.extensionUri, context.secrets);
 	});
 	context.subscriptions.push(createNewRequestCommand);
 
