@@ -1,3 +1,9 @@
+## [0.7.1](https://github.com/[secure]/mcp-[secure]/compare/v0.7.0...v0.7.1) (2026-11-01)
+
+### Bug Fixes
+
+* bring the README up to date for TLS and current limits ([9f87625](https://github.com/[secure]/mcp-[secure]/commit/9f87625dff0e7ca87a8fd37a4406e7f8ba28f2a9))
+
 ## [0.7.0](https://github.com/[secure]/mcp-[secure]/compare/v0.6.0...v0.7.0) (2026-11-01)
 
 ### Features
