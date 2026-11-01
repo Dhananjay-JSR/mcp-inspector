@@ -27,16 +27,24 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: yarn
 
+      - name: Verify toolchain
+        shell: bash
+        run: |
+          test "v$(cat .nvmrc)" = "$(node --version)"
+          test "$(yarn --version | cut -d. -f1,2)" = "1.22"
+
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --frozen-lockfile --ignore-scripts --non-interactive
 
       - name: Compile TypeScript
         run: yarn compile
@@ -51,23 +59,31 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: yarn
+
+      - name: Verify toolchain
+        shell: bash
+        run: |
+          test "v$(cat .nvmrc)" = "$(node --version)"
+          test "$(yarn --version | cut -d. -f1,2)" = "1.22"
 
       # Reuse the downloaded VS Code build between runs (see .vscode-test.mjs).
       - name: Cache VS Code test download
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .vscode-test
           key: vscode-test-${{ runner.os }}-${{ hashFiles('.vscode-test.mjs') }}
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --frozen-lockfile --ignore-scripts --non-interactive
 
       - name: Install virtual display and VS Code libraries
         run: |
@@ -81,7 +97,7 @@ jobs:
 
       - name: Upload test logs
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-logs
           path: .vscode-test/**/logs/**
@@ -96,22 +112,40 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: yarn
 
+      - name: Verify toolchain
+        shell: bash
+        run: |
+          test "v$(cat .nvmrc)" = "$(node --version)"
+          test "$(yarn --version | cut -d. -f1,2)" = "1.22"
+
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --frozen-lockfile --ignore-scripts --non-interactive
 
       - name: Package extension
         run: yarn package
 
+      - name: Verify package contents
+        run: |
+          yarn --silent vsce ls > vsix-files.txt
+          if grep -Eq '^(src|\.github|\.vscode)/|^(patch-sdk\.js|\.commitlintrc\.json|CONTRIBUTING\.md|\.nvmrc)$' vsix-files.txt; then
+            echo "Unexpected files in the VSIX:"
+            grep -E '^(src|\.github|\.vscode)/|^(patch-sdk\.js|\.commitlintrc\.json|CONTRIBUTING\.md|\.nvmrc)$' vsix-files.txt
+            exit 1
+          fi
+          echo "VSIX contents look clean"
+
       - name: Upload VSIX artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mcp-inspector-vsix
           path: '*.vsix'
