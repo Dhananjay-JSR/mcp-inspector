@@ -43,10 +43,21 @@ rebinding. For reliable local work, use the desktop app or Codespaces.
 
 ## Relay for servers without CORS
 
-If you cannot change the server's CORS configuration, connect through the
-[MCP Inspector Relay](https://github.com/Dhananjay-JSR/mcp-inspector-relay). The
-relay adds the CORS headers and forwards the SSE stream. The extension needs no
-special setting: point it at the relay URL.
+If you cannot change the server's CORS configuration, the web inspector offers
+the relay after a failed direct connection:
+
+1. Enter the upstream SSE server URL and connect.
+2. If the browser blocks the request (CORS), the inspector shows a prompt:
+   **Use relay server to connect?**
+3. Accept, and the inspector retries through the read-only relay server at
+   `https://mcp-relay.dhananjaay.dev`.
+
+The extension composes the relay URL for you:
+`https://mcp-relay.dhananjaay.dev/sse?url=<encoded upstream>`.
+
+The relay is open source:
+[MCP Inspector Relay](https://github.com/Dhananjay-JSR/mcp-inspector-relay).
+For other MCP clients, the same relay can be used directly:
 
 ```text
 https://mcp-relay.dhananjaay.dev/sse?url=https%3A%2F%2Fmcp.example.com%2Fsse

@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { MCPClient } from '../transport/MCPTransport';
 
+const RELAY_BASE_URL = 'https://mcp-relay.dhananjaay.dev';
+
 export class MCPInspectorPanel {
 	public static currentPanel: MCPInspectorPanel | undefined;
 	private readonly _panel: vscode.WebviewPanel;
@@ -69,6 +71,22 @@ export class MCPInspectorPanel {
 	}
 
 	private _getRenderer(webview: vscode.Webview) {
+		const relayPrompt = this._isWeb
+			? `
+					<div id="relayPrompt" class="relay-prompt" style="display: none;">
+						<div class="relay-title">Connection failed. Use relay server to connect?</div>
+						<div id="relayErrorMessage" class="relay-error"></div>
+						<div class="form-group">
+							<label for="relayServer">Relay server (read-only):</label>
+							<input type="text" id="relayServer" value="${RELAY_BASE_URL}" readonly>
+						</div>
+						<div class="relay-actions">
+							<button onclick="connectViaRelay()">Use relay</button>
+							<button class="secondary" onclick="hideRelayPrompt()">Cancel</button>
+						</div>
+					</div>`
+			: '';
+
 		return `
         <!DOCTYPE html>
 			<html lang="en">
@@ -98,6 +116,43 @@ export class MCPInspectorPanel {
 						color: var(--vscode-inputValidation-warningForeground);
 						border-radius: 3px;
 						font-size: 12px;
+					}
+					.relay-prompt {
+						margin-top: 15px;
+						padding: 12px;
+						border: 1px solid var(--vscode-inputValidation-errorBorder);
+						background: var(--vscode-inputValidation-errorBackground);
+						border-radius: 3px;
+					}
+					.relay-title {
+						font-weight: 600;
+						margin-bottom: 6px;
+					}
+					.relay-error {
+						font-size: 12px;
+						margin-bottom: 10px;
+						color: var(--vscode-errorForeground);
+					}
+					.relay-actions {
+						display: flex;
+						gap: 8px;
+					}
+					.relay-actions button {
+						width: auto;
+						margin-top: 0;
+					}
+					button.secondary {
+						background: var(--vscode-button-secondaryBackground);
+						color: var(--vscode-button-secondaryForeground);
+					}
+					input[readonly] {
+						opacity: 0.8;
+						cursor: text;
+					}
+					.hint {
+						color: var(--vscode-descriptionForeground);
+						font-size: 12px;
+						margin-top: -4px;
 					}
 					label {
 						display: block;
@@ -309,6 +364,7 @@ export class MCPInspectorPanel {
 						<h3>Connection Status:</h3>
 						<pre id="status">Not connected</pre>
 					</div>
+					${relayPrompt}
 
 					<div id="toolsContainer" class="tools-container">
 						<h3>Available Tools:</h3>
@@ -340,11 +396,37 @@ export class MCPInspectorPanel {
 					const vscode = acquireVsCodeApi();
 					const isWeb = ${this._isWeb};
 					let isConnected = false;
+					let relayAttempted = false;
 
 					function handleTransportChange() {
 						const transportType = document.getElementById('transportType').value;
 						document.getElementById('stdioSection').classList.toggle('active', transportType === 'stdio');
 						document.getElementById('sseSection').classList.toggle('active', transportType === 'sse');
+					}
+
+					function hideRelayPrompt() {
+						const prompt = document.getElementById('relayPrompt');
+						if (prompt) {
+							prompt.style.display = 'none';
+						}
+					}
+
+					function connectViaRelay() {
+						const upstream = document.getElementById('serverUrl').value.trim();
+						const relayBase = document.getElementById('relayServer').value.replace(/\\/+$/, '');
+						if (!upstream) {
+							return;
+						}
+						relayAttempted = true;
+						hideRelayPrompt();
+						document.getElementById('status').textContent = 'Connecting through the relay...';
+						vscode.postMessage({
+							command: 'connect',
+							data: {
+								transport: 'sse',
+								serverUrl: relayBase + '/sse?url=' + encodeURIComponent(upstream)
+							}
+						});
 					}
 
 					function connect() {
@@ -355,6 +437,9 @@ export class MCPInspectorPanel {
 
 						const transportType = document.getElementById('transportType').value;
 						let connectionData = {};
+
+						relayAttempted = false;
+						hideRelayPrompt();
 
 						if (isWeb && transportType === 'stdio') {
 							document.getElementById('status').textContent = 'STDIO is not available in VS Code for the Web.';
@@ -370,9 +455,14 @@ export class MCPInspectorPanel {
 								args: args
 							};
 						} else {
+							const serverUrl = document.getElementById('serverUrl').value.trim();
+							if (!serverUrl) {
+								document.getElementById('status').textContent = 'Enter an SSE server URL.';
+								return;
+							}
 							connectionData = {
 								transport: 'sse',
-								serverUrl: document.getElementById('serverUrl').value
+								serverUrl
 							};
 						}
 
@@ -437,14 +527,25 @@ export class MCPInspectorPanel {
 							case 'connectionStatus':
 								if (message.data.disconnected) {
 									updateConnectionUI(false);
+									hideRelayPrompt();
 								} else if (message.data.success) {
 									updateConnectionUI(true);
+									hideRelayPrompt();
 									if (message.data.tools) {
 										displayTools(message.data.tools);
 									}
 								} else {
 									updateConnectionUI(false);
-									document.getElementById('status').textContent = 'Connection failed: ' + message.data.error;
+									const error = message.data.error || 'Unknown error';
+									document.getElementById('status').textContent = 'Connection failed: ' + error;
+
+									const serverUrl = document.getElementById('serverUrl').value.trim();
+									const relayBase = document.getElementById('relayServer')?.value || '';
+									const alreadyRelay = relayBase && serverUrl.startsWith(relayBase);
+									if (isWeb && message.data.corsLikely && !relayAttempted && !alreadyRelay) {
+										document.getElementById('relayErrorMessage').textContent = error;
+										document.getElementById('relayPrompt').style.display = 'block';
+									}
 								}
 								break;
 						}
@@ -622,7 +723,8 @@ export class MCPInspectorPanel {
 					command: 'connectionStatus',
 					data: {
 						success: false,
-						error: result.error
+						error: result.error,
+						corsLikely: result.corsLikely
 					}
 				});
 			}

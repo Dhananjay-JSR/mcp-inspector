@@ -59,13 +59,14 @@ export class MCPClient implements IMCPClient {
       return { success: true, tools: this.tools };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error occurred";
-      const hint = looksLikeNetworkError(error, message)
+      const networkError = looksLikeNetworkError(error, message);
+      const hint = networkError
         ? ` The browser blocks cross-origin requests unless the server allows ${browserOrigin()} via CORS. See WEB.md for the required headers.`
         : "";
       const fullMessage = `${message}${hint}`;
 
       vscode.window.showErrorMessage(`Failed to connect to MCP server via SSE: ${fullMessage}`);
-      return { success: false, error: fullMessage };
+      return { success: false, error: fullMessage, corsLikely: networkError };
     }
   }
 
