@@ -65,16 +65,8 @@ export class MCPClient implements IMCPClient {
         input_schema: tool.inputSchema as InputSchema,
       }));
 
-      vscode.window.showInformationMessage(
-        `Connected to MCP server via STDIO with ${this.tools.length} tools`,
-      );
       return { success: true, tools: this.tools };
     } catch (error) {
-      vscode.window.showErrorMessage(
-        `Failed to connect to MCP server via STDIO: ${
-          error instanceof Error ? error.message : "Unknown error occurred"
-        }`,
-      );
       return {
         success: false,
         error: error instanceof Error ? error.message : "Failed to connect to STDIO server",
@@ -276,9 +268,6 @@ export class MCPClient implements IMCPClient {
         },
       );
 
-      if (!result.success) {
-        vscode.window.showErrorMessage(`Failed to connect to MCP server: ${result.error}`);
-      }
       return result;
     } finally {
       callback?.close();
@@ -301,7 +290,6 @@ export class MCPClient implements IMCPClient {
       return { success: true, result };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      vscode.window.showErrorMessage(`Failed to execute tool ${toolName}: ${errorMessage}`);
       return { success: false, error: errorMessage };
     }
   }
