@@ -28,6 +28,8 @@ export interface OAuthCallback {
 
 interface StoredCredentials {
   clientInformation?: OAuthClientInformationMixed;
+  /** The callback URL this client was registered with. */
+  clientRedirectUrl?: string;
   tokens?: OAuthTokens;
   codeVerifier?: string;
 }
@@ -104,11 +106,19 @@ export class SecretStorageOAuthProvider implements OAuthClientProvider {
   }
 
   async clientInformation(): Promise<OAuthClientInformationMixed | undefined> {
-    return (await this.read()).clientInformation;
+    const stored = await this.read();
+    // A registered client is bound to the redirect URI it was created with.
+    // The web callback carries a per-session VS Code target, so a client from
+    // an earlier session (or from a direct connection) no longer matches and
+    // the authorization server would reject it with invalid_redirect_uri.
+    if (stored.clientRedirectUrl !== this.callback.url) {
+      return undefined;
+    }
+    return stored.clientInformation;
   }
 
   async saveClientInformation(clientInformation: OAuthClientInformationMixed): Promise<void> {
-    await this.update({ clientInformation });
+    await this.update({ clientInformation, clientRedirectUrl: this.callback.url });
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
@@ -145,6 +155,7 @@ export class SecretStorageOAuthProvider implements OAuthClientProvider {
     const stored = await this.read();
     if (scope === "client") {
       delete stored.clientInformation;
+      delete stored.clientRedirectUrl;
     } else if (scope === "tokens") {
       delete stored.tokens;
     } else if (scope === "verifier") {
