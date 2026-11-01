@@ -61,6 +61,43 @@ export function registerWebOAuthHandler(): vscode.Disposable {
   });
 }
 
+/** Packs a URL into the relay callback path without a query string. */
+function encodeCallbackTarget(target: string): string {
+  const bytes = new TextEncoder().encode(target);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * vscode-test-web serves the URI-callback page at /callback but leaves
+ * callbackRoute out of its workbench configuration, so asExternalUri points at
+ * the root and percent-encodes the separators in its query
+ * (`?vscode-reqid%3D1%26...`). The callback page cannot parse that, so rebuild
+ * the URL for local sessions. The production build already returns a usable
+ * callback URL and is left untouched.
+ */
+export function withLocalCallbackRoute(external: vscode.Uri): string {
+  const url = new URL(external.toString());
+  if (
+    url.pathname === "/" &&
+    (url.hostname === "localhost" || url.hostname === "127.0.0.1")
+  ) {
+    let query: string;
+    try {
+      query = decodeURIComponent(url.search.slice(1));
+    } catch {
+      return external.toString();
+    }
+    if (query.split("&").some((part) => part.startsWith("vscode-reqid="))) {
+      return `${url.origin}/callback?${query}`;
+    }
+  }
+  return external.toString();
+}
+
 /**
  * Web equivalent of `OAuthCallbackServer`. It does not open a socket: the
  * redirect is captured by VS Code's URI handler, and `waitForCode` resolves
@@ -83,14 +120,17 @@ export class WebOAuthCallback implements OAuthCallback {
     const base = vscode.Uri.parse(
       `${vscode.env.uriScheme}://${EXTENSION_ID}${CALLBACK_PATH}`,
     );
-    const external = await vscode.env.asExternalUri(base);
-    const target = external.toString();
+    const target = withLocalCallbackRoute(
+      await vscode.env.asExternalUri(base),
+    );
 
     // A stable HTTPS relay callback avoids authorization servers that reject
-    // the editor's ephemeral asExternalUri URL. The relay forwards code/state
+    // the editor's ephemeral asExternalUri URL. The target goes in the path:
+    // a query parameter would be nested and double-encoded, and some servers
+    // reject that when they complete the flow. The relay forwards code/state
     // to the VS Code URI handler.
     this.callbackUrl = this.relayBase
-      ? `${this.relayBase.replace(/\/+$/, "")}/oauth/callback?target=${encodeURIComponent(target)}`
+      ? `${this.relayBase.replace(/\/+$/, "")}/oauth/callback/${encodeCallbackTarget(target)}`
       : target;
 
     activeCallbacks.add(this);

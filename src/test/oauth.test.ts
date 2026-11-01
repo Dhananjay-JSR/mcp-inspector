@@ -7,7 +7,7 @@ import {
   SecretStorageOAuthProvider,
   supportsOAuth,
 } from "../auth/oauth";
-import { WebOAuthCallback } from "../auth/oauth.web";
+import { WebOAuthCallback, withLocalCallbackRoute } from "../auth/oauth.web";
 
 class FakeSecretStorage implements vscode.SecretStorage {
   readonly values = new Map<string, string>();
@@ -151,6 +151,40 @@ suite("OAuth Test Suite", () => {
     }
   });
 
+  test("web callback keeps the relay target out of the query string", async () => {
+    const callback = new WebOAuthCallback("https://relay.example");
+    try {
+      const url = await callback.start();
+
+      assert.match(url, /^https:\/\/relay\.example\/oauth\/callback\/[A-Za-z0-9_-]+$/);
+      assert.ok(!url.includes("?"), "the relay callback should not carry a query string");
+
+      const token = url.slice(url.lastIndexOf("/") + 1);
+      const decoded = Buffer.from(token, "base64url").toString("utf8");
+      assert.match(decoded, /mcp-oauth-callback/);
+    } finally {
+      callback.close();
+    }
+  });
+
+  test("local sessions use the harness callback route", () => {
+    const local = vscode.Uri.parse(
+      "http://localhost:3000/?vscode-reqid=3&vscode-scheme=vscode-insiders",
+    );
+    const routed = withLocalCallbackRoute(local);
+    assert.ok(routed.startsWith("http://localhost:3000/callback?"));
+    assert.ok(routed.includes("vscode-reqid=3"));
+    assert.ok(!routed.includes("%3D"), "query separators should be plain");
+
+    const production = vscode.Uri.parse(
+      "https://vscode.dev/redirect?vscode-reqid=3&vscode-scheme=vscode",
+    );
+    assert.strictEqual(
+      withLocalCallbackRoute(production),
+      production.toString(),
+    );
+  });
+
   test("web callback buffers a code that arrives before waitForCode", async () => {
     const callback = new WebOAuthCallback();
     try {
@@ -232,6 +266,39 @@ suite("OAuth Test Suite", () => {
     assert.strictEqual(await provider.codeVerifier(), "verifier-1");
     assert.deepStrictEqual(await provider.tokens(), TOKENS);
     assert.strictEqual(secrets.values.size, 1, "credentials should share one secret entry");
+
+    secrets.dispose();
+  });
+
+  test("provider re-registers when the callback URL changes", async () => {
+    const secrets = new FakeSecretStorage();
+    const serverUrl = new URL("https://mcp.example.com/mcp");
+    const directProvider = new SecretStorageOAuthProvider(
+      secrets,
+      serverUrl,
+      new OAuthCallbackServer(),
+    );
+
+    await directProvider.saveClientInformation({ client_id: "direct-client" });
+    await directProvider.saveTokens(TOKENS);
+
+    const relayProvider = new SecretStorageOAuthProvider(secrets, serverUrl, {
+      url: "https://relay.example/oauth/callback?target=https%3A%2F%2Fvscode.dev%2Fredirect",
+      waitForCode: async () => "code",
+      close: () => {},
+    });
+
+    // A client bound to the old redirect URI must not be reused; WorkOS
+    // answers invalid_redirect_uri after sign-in otherwise.
+    assert.strictEqual(await relayProvider.clientInformation(), undefined);
+
+    await relayProvider.saveClientInformation({ client_id: "relay-client" });
+    assert.deepStrictEqual(await relayProvider.clientInformation(), {
+      client_id: "relay-client",
+    });
+
+    // Tokens are not tied to the redirect URI, so a re-registration keeps them.
+    assert.deepStrictEqual(await relayProvider.tokens(), TOKENS);
 
     secrets.dispose();
   });
