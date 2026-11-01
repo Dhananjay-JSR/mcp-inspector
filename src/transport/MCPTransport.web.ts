@@ -1,5 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import * as vscode from "vscode";
 import type {
   ConnectionResult,
@@ -21,7 +22,7 @@ function looksLikeNetworkError(error: unknown, message: string): boolean {
 
 export class MCPClient implements IMCPClient {
   private mcp: Client;
-  private transport: SSEClientTransport | null = null;
+  private transport: SSEClientTransport | StreamableHTTPClientTransport | null = null;
   private tools: Tool[] = [];
 
   constructor() {
@@ -53,16 +54,47 @@ export class MCPClient implements IMCPClient {
       );
       return { success: true, tools: this.tools };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error occurred";
-      const networkError = looksLikeNetworkError(error, message);
-      const hint = networkError
-        ? " The browser blocked this cross-origin request. Allow this editor's origin on the server, or use the relay to connect."
-        : "";
-      const fullMessage = `${message}${hint}`;
-
-      vscode.window.showErrorMessage(`Failed to connect to MCP server via SSE: ${fullMessage}`);
-      return { success: false, error: fullMessage, corsLikely: networkError };
+      return this.failure(error, "SSE");
     }
+  }
+
+  async connectToStreamableHTTP(serverUrl: string): Promise<ConnectionResult> {
+    try {
+      if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
+        throw new Error("Server URL must start with http:// or https://");
+      }
+
+      this.transport = new StreamableHTTPClientTransport(new URL(serverUrl));
+      await this.mcp.connect(this.transport);
+
+      const toolsResult = await this.mcp.listTools();
+      this.tools = toolsResult.tools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        input_schema: tool.inputSchema as InputSchema,
+      }));
+
+      vscode.window.showInformationMessage(
+        `Connected to MCP server via Streamable HTTP with ${this.tools.length} tools`,
+      );
+      return { success: true, tools: this.tools };
+    } catch (error) {
+      return this.failure(error, "Streamable HTTP");
+    }
+  }
+
+  private failure(error: unknown, transportLabel: string): ConnectionResult {
+    const message = error instanceof Error ? error.message : "Unknown error occurred";
+    const networkError = looksLikeNetworkError(error, message);
+    const hint = networkError
+      ? " The browser blocked this cross-origin request. Allow this editor's origin on the server, or use the relay to connect."
+      : "";
+    const fullMessage = `${message}${hint}`;
+
+    vscode.window.showErrorMessage(
+      `Failed to connect to MCP server via ${transportLabel}: ${fullMessage}`,
+    );
+    return { success: false, error: fullMessage, corsLikely: networkError };
   }
 
   async executeTool(

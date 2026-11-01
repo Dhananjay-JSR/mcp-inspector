@@ -30,6 +30,8 @@ export class MCPInspectorPanel {
 							await this.handleStdioConnection(connectionData);
 						} else if (connectionData.transport === 'sse') {
 							await this.handleSSEConnection(connectionData);
+						} else if (connectionData.transport === 'streamable-http') {
+							await this.handleStreamableHTTPConnection(connectionData);
 						}
                         break;
                     case 'disconnect':
@@ -329,6 +331,7 @@ export class MCPInspectorPanel {
 						<select id="transportType" onchange="handleTransportChange()">
 							<option value="stdio" ${this._isWeb ? 'disabled' : 'selected'}>STDIO${this._isWeb ? ' (not available on the web)' : ''}</option>
 							<option value="sse" ${this._isWeb ? 'selected' : ''}>SSE</option>
+							<option value="streamable-http">Streamable HTTP</option>
 						</select>
 					</div>
 
@@ -350,6 +353,14 @@ export class MCPInspectorPanel {
 						<div class="form-group">
 							<label for="serverUrl">Server URL:</label>
 							<input type="text" id="serverUrl" placeholder="Enter SSE server URL">
+						</div>
+					</div>
+
+					<!-- Streamable HTTP Section -->
+					<div id="streamableHttpSection" class="transport-section">
+						<div class="form-group">
+							<label for="streamableHttpUrl">Server URL:</label>
+							<input type="text" id="streamableHttpUrl" placeholder="Enter Streamable HTTP server URL (for example https://host/mcp)">
 						</div>
 					</div>
 
@@ -397,11 +408,13 @@ export class MCPInspectorPanel {
 					const isWeb = ${this._isWeb};
 					let isConnected = false;
 					let relayAttempted = false;
+					let lastTransport = 'sse';
 
 					function handleTransportChange() {
 						const transportType = document.getElementById('transportType').value;
 						document.getElementById('stdioSection').classList.toggle('active', transportType === 'stdio');
 						document.getElementById('sseSection').classList.toggle('active', transportType === 'sse');
+						document.getElementById('streamableHttpSection').classList.toggle('active', transportType === 'streamable-http');
 					}
 
 					function hideRelayPrompt() {
@@ -411,8 +424,15 @@ export class MCPInspectorPanel {
 						}
 					}
 
+					function getServerUrlFor(transportType) {
+						return transportType === 'streamable-http'
+							? document.getElementById('streamableHttpUrl').value.trim()
+							: document.getElementById('serverUrl').value.trim();
+					}
+
 					function connectViaRelay() {
-						const upstream = document.getElementById('serverUrl').value.trim();
+						const transportType = lastTransport === 'streamable-http' ? 'streamable-http' : 'sse';
+						const upstream = getServerUrlFor(transportType);
 						const relayBase = document.getElementById('relayServer').value.replace(/\\/+$/, '');
 						if (!upstream) {
 							return;
@@ -420,11 +440,12 @@ export class MCPInspectorPanel {
 						relayAttempted = true;
 						hideRelayPrompt();
 						document.getElementById('status').textContent = 'Connecting through the relay...';
+						const relayPath = transportType === 'streamable-http' ? '/mcp?url=' : '/sse?url=';
 						vscode.postMessage({
 							command: 'connect',
 							data: {
-								transport: 'sse',
-								serverUrl: relayBase + '/sse?url=' + encodeURIComponent(upstream)
+								transport: transportType,
+								serverUrl: relayBase + relayPath + encodeURIComponent(upstream)
 							}
 						});
 					}
@@ -438,6 +459,7 @@ export class MCPInspectorPanel {
 						const transportType = document.getElementById('transportType').value;
 						let connectionData = {};
 
+						lastTransport = transportType;
 						relayAttempted = false;
 						hideRelayPrompt();
 
@@ -454,14 +476,24 @@ export class MCPInspectorPanel {
 								command: command,
 								args: args
 							};
-						} else {
-							const serverUrl = document.getElementById('serverUrl').value.trim();
+						} else if (transportType === 'sse') {
+							const serverUrl = getServerUrlFor('sse');
 							if (!serverUrl) {
 								document.getElementById('status').textContent = 'Enter an SSE server URL.';
 								return;
 							}
 							connectionData = {
 								transport: 'sse',
+								serverUrl
+							};
+						} else {
+							const serverUrl = getServerUrlFor('streamable-http');
+							if (!serverUrl) {
+								document.getElementById('status').textContent = 'Enter a Streamable HTTP server URL.';
+								return;
+							}
+							connectionData = {
+								transport: 'streamable-http',
 								serverUrl
 							};
 						}
@@ -539,7 +571,7 @@ export class MCPInspectorPanel {
 									const error = message.data.error || 'Unknown error';
 									document.getElementById('status').textContent = 'Connection failed: ' + error;
 
-									const serverUrl = document.getElementById('serverUrl').value.trim();
+									const serverUrl = getServerUrlFor(lastTransport);
 									const relayBase = document.getElementById('relayServer')?.value || '';
 									const alreadyRelay = relayBase && serverUrl.startsWith(relayBase);
 									if (isWeb && message.data.corsLikely && !relayAttempted && !alreadyRelay) {
@@ -719,6 +751,45 @@ export class MCPInspectorPanel {
 				});
 			} else {
 				// Send error message back to webview
+				this._panel.webview.postMessage({
+					command: 'connectionStatus',
+					data: {
+						success: false,
+						error: result.error,
+						corsLikely: result.corsLikely
+					}
+				});
+			}
+		} catch (error) {
+			this._panel.webview.postMessage({
+				command: 'connectionStatus',
+				data: {
+					success: false,
+					error: error instanceof Error ? error.message : 'Unknown error occurred'
+				}
+			});
+		}
+	}
+
+
+	private async handleStreamableHTTPConnection(connectionData: any) {
+		try {
+			// Create a new MCP client for this session
+			this._mcpClient = new MCPClient();
+
+			const serverUrl = connectionData.serverUrl;
+
+			const result = await this._mcpClient.connectToStreamableHTTP(serverUrl);
+
+			if (result.success) {
+				this._panel.webview.postMessage({
+					command: 'connectionStatus',
+					data: {
+						success: true,
+						tools: result.tools
+					}
+				});
+			} else {
 				this._panel.webview.postMessage({
 					command: 'connectionStatus',
 					data: {

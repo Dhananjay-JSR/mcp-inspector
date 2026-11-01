@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import * as vscode from "vscode";
 import type {
   ConnectionResult,
@@ -12,7 +13,11 @@ import type {
 
 export class MCPClient implements IMCPClient {
   private mcp: Client;
-  private transport: StdioClientTransport | SSEClientTransport | null = null;
+  private transport:
+    | StdioClientTransport
+    | SSEClientTransport
+    | StreamableHTTPClientTransport
+    | null = null;
   private tools: Tool[] = [];
 
   constructor() {
@@ -78,6 +83,36 @@ export class MCPClient implements IMCPClient {
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : "Unknown error occurred";
       vscode.window.showErrorMessage(`Failed to connect to MCP server via SSE: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  async connectToStreamableHTTP(serverUrl: string): Promise<ConnectionResult> {
+    try {
+      if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
+        throw new Error("Server URL must start with http:// or https://");
+      }
+
+      this.transport = new StreamableHTTPClientTransport(new URL(serverUrl));
+
+      await this.mcp.connect(this.transport);
+
+      const toolsResult = await this.mcp.listTools();
+      this.tools = toolsResult.tools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        input_schema: tool.inputSchema as InputSchema,
+      }));
+
+      vscode.window.showInformationMessage(
+        `Connected to MCP server via Streamable HTTP with ${this.tools.length} tools`,
+      );
+      return { success: true, tools: this.tools };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      vscode.window.showErrorMessage(
+        `Failed to connect to MCP server via Streamable HTTP: ${errorMessage}`,
+      );
       return { success: false, error: errorMessage };
     }
   }
