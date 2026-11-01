@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { MCPClient } from '../transport/MCPTransport';
 
 const RELAY_BASE_URL = 'https://mcp-relay.dhananjaay.dev';
+const RELAY_REPO_URL = 'https://github.com/Dhananjay-JSR/mcp-inspector-relay';
 
 export class MCPInspectorPanel {
 	public static currentPanel: MCPInspectorPanel | undefined;
@@ -39,6 +40,12 @@ export class MCPInspectorPanel {
                         break;
                     case 'executeTool':
                         await this.handleToolExecution(message.data.toolName, message.data.args);
+                        break;
+                    case 'pickCommand':
+                        await this.handlePickCommand();
+                        break;
+                    case 'openRelayRepo':
+                        await vscode.env.openExternal(vscode.Uri.parse(RELAY_REPO_URL));
                         break;
 				}
 			},
@@ -79,16 +86,14 @@ export class MCPInspectorPanel {
 	private _getRenderer(webview: vscode.Webview) {
 		const relayPrompt = this._isWeb
 			? `
-					<div id="relayPrompt" class="relay-prompt" style="display: none;">
-						<div class="relay-title">Connection failed. Use relay server to connect?</div>
-						<div id="relayErrorMessage" class="relay-error"></div>
-						<div class="form-group">
-							<label for="relayServer">Relay server (read-only):</label>
-							<input type="text" id="relayServer" value="${RELAY_BASE_URL}" readonly>
-						</div>
-						<div class="relay-actions">
+					<div id="relayPrompt" class="callout" style="display: none;" role="alert">
+						<div class="callout-title">Use the relay to connect</div>
+						<p class="callout-body">This server does not allow requests from the editor, so the browser blocked the connection. The relay forwards the request for you.</p>
+						<p class="callout-privacy">The relay does not log requests, headers, or tokens.</p>
+						<p class="callout-meta"><code>${RELAY_BASE_URL.replace('https://', '')}</code> · <a href="#" onclick="openRelayRepo(); return false;">source on GitHub</a></p>
+						<div class="callout-actions">
 							<button onclick="connectViaRelay()">Use relay</button>
-							<button class="secondary" onclick="hideRelayPrompt()">Cancel</button>
+							<button class="secondary" onclick="hideRelayPrompt()">Dismiss</button>
 						</div>
 					</div>`
 			: '';
@@ -102,97 +107,168 @@ export class MCPInspectorPanel {
 				<title>MCP Inspector</title>
 				<style>
 					body {
-						padding: 20px;
+						margin: 0;
+						padding: 0;
 						color: var(--vscode-editor-foreground);
 						background-color: var(--vscode-editor-background);
 						font-family: var(--vscode-font-family);
+						font-size: var(--vscode-font-size, 13px);
+						line-height: 1.5;
 					}
 					.container {
-						max-width: 800px;
+						max-width: 720px;
 						margin: 0 auto;
+						padding: 28px 20px 40px;
+					}
+					.page-header {
+						margin-bottom: 24px;
+					}
+					.page-header h1 {
+						margin: 0 0 4px;
+						font-size: 1.25rem;
+						font-weight: 600;
+					}
+					.page-subtitle {
+						margin: 0;
+						color: var(--vscode-descriptionForeground);
+						font-size: 12px;
 					}
 					.form-group {
-						margin-bottom: 15px;
+						margin-bottom: 16px;
 					}
 					.web-note {
-						padding: 10px;
-						margin-bottom: 10px;
-						border-left: 3px solid var(--vscode-inputValidation-warningBorder);
+						padding: 10px 12px;
+						margin-bottom: 16px;
+						border-left: 2px solid var(--vscode-inputValidation-warningBorder);
 						background: var(--vscode-inputValidation-warningBackground);
 						color: var(--vscode-inputValidation-warningForeground);
 						border-radius: 3px;
 						font-size: 12px;
 					}
-					.relay-prompt {
-						margin-top: 15px;
-						padding: 12px;
-						border: 1px solid var(--vscode-inputValidation-errorBorder);
-						background: var(--vscode-inputValidation-errorBackground);
-						border-radius: 3px;
+					.callout {
+						margin-top: 12px;
+						padding: 12px 14px;
+						border: 1px solid var(--vscode-input-border, transparent);
+						border-left: 3px solid var(--vscode-inputValidation-warningBorder);
+						background: var(--vscode-editorWidget-background, var(--vscode-input-background));
+						color: var(--vscode-foreground);
+						border-radius: 4px;
 					}
-					.relay-title {
+					.callout-title {
 						font-weight: 600;
-						margin-bottom: 6px;
+						margin: 0 0 4px;
 					}
-					.relay-error {
+					.callout-body {
+						margin: 0 0 8px;
 						font-size: 12px;
-						margin-bottom: 10px;
-						color: var(--vscode-errorForeground);
+						line-height: 1.5;
 					}
-					.relay-actions {
+					.callout-meta {
+						margin: 0 0 12px;
+						font-size: 11px;
+						color: var(--vscode-descriptionForeground);
+					}
+					.callout-meta code {
+						font-family: var(--vscode-editor-font-family, monospace);
+					}
+					.callout-meta a,
+					.callout-privacy a {
+						color: var(--vscode-textLink-foreground);
+						text-decoration: none;
+					}
+					.callout-meta a:hover,
+					.callout-privacy a:hover {
+						color: var(--vscode-textLink-activeForeground);
+						text-decoration: underline;
+					}
+					.callout-privacy {
+						margin: 0 0 4px;
+						font-size: 12px;
+					}
+					.callout-actions {
 						display: flex;
 						gap: 8px;
 					}
-					.relay-actions button {
-						width: auto;
-						margin-top: 0;
-					}
-					button.secondary {
-						background: var(--vscode-button-secondaryBackground);
-						color: var(--vscode-button-secondaryForeground);
-					}
-					input[readonly] {
-						opacity: 0.8;
-						cursor: text;
+					.callout-actions button {
+						margin: 0;
 					}
 					.hint {
 						color: var(--vscode-descriptionForeground);
-						font-size: 12px;
-						margin-top: -4px;
+						font-size: 11px;
+						margin: 6px 0 0;
 					}
 					label {
 						display: block;
-						margin-bottom: 5px;
-						color: var(--vscode-input-foreground);
+						margin-bottom: 6px;
+						font-size: 12px;
+						color: var(--vscode-foreground);
 					}
 					input, select, textarea {
 						width: 100%;
-						padding: 8px;
-						margin-bottom: 10px;
+						height: 30px;
+						box-sizing: border-box;
+						padding: 4px 8px;
+						margin-bottom: 0;
 						background-color: var(--vscode-input-background);
 						color: var(--vscode-input-foreground);
-						border: 1px solid var(--vscode-input-border);
+						border: 1px solid var(--vscode-input-border, transparent);
 						border-radius: 3px;
+						font-family: inherit;
+						font-size: inherit;
+						outline: none;
+					}
+					input:focus, select:focus, textarea:focus {
+						border-color: var(--vscode-focusBorder);
 					}
 					button {
 						background-color: var(--vscode-button-background);
 						color: var(--vscode-button-foreground);
-						border: none;
-						padding: 8px 16px;
+						border: 1px solid transparent;
+						padding: 6px 14px;
 						cursor: pointer;
 						border-radius: 3px;
-						width: 100%;
-						margin-top: 10px;
+						font-family: inherit;
+						font-size: 12px;
+						width: auto;
 					}
 					button:hover {
 						background-color: var(--vscode-button-hoverBackground);
 					}
-					.response-container {
-						margin-top: 20px;
-						padding: 10px;
-						border: 1px solid var(--vscode-input-border);
-						border-radius: 3px;
-						background-color: var(--vscode-editor-background);
+					button:disabled {
+						opacity: 0.6;
+						cursor: not-allowed;
+					}
+					button.secondary {
+						background-color: var(--vscode-button-secondaryBackground);
+						color: var(--vscode-button-secondaryForeground);
+					}
+					button.secondary:hover {
+						background-color: var(--vscode-button-secondaryHoverBackground);
+					}
+					.button-row {
+						display: flex;
+						align-items: center;
+						gap: 12px;
+						margin: 20px 0 16px;
+					}
+					.button-row button {
+						min-width: 120px;
+					}
+					.input-with-button {
+						display: flex;
+						gap: 8px;
+					}
+					.input-with-button input {
+						flex: 1;
+						min-width: 0;
+					}
+					.input-with-button button {
+						flex: none;
+						background-color: var(--vscode-button-secondaryBackground);
+						color: var(--vscode-button-secondaryForeground);
+					}
+					.input-with-button button:hover {
+						background-color: var(--vscode-button-secondaryHoverBackground);
 					}
 					.transport-section {
 						display: none;
@@ -200,52 +276,109 @@ export class MCPInspectorPanel {
 					.transport-section.active {
 						display: block;
 					}
+					.status {
+						display: flex;
+						gap: 10px;
+						align-items: flex-start;
+						padding: 10px 12px;
+						border: 1px solid var(--vscode-input-border, transparent);
+						border-radius: 4px;
+						font-size: 12px;
+						line-height: 1.5;
+					}
+					.status.error {
+						border-color: var(--vscode-inputValidation-errorBorder);
+						background: var(--vscode-inputValidation-errorBackground);
+					}
+					.status.success {
+						border-color: var(--vscode-charts-green, #3fa45b);
+					}
+					.status-text {
+						white-space: pre-wrap;
+						word-break: break-word;
+					}
+					.status-details {
+						margin-top: 8px;
+					}
+					.status-details summary {
+						cursor: pointer;
+						color: var(--vscode-descriptionForeground);
+						font-size: 11px;
+					}
+					.status-details pre {
+						margin: 6px 0 0;
+						font-size: 11px;
+						opacity: 0.85;
+						white-space: pre-wrap;
+						word-break: break-word;
+					}
 					.status-indicator {
-						width: 10px;
-						height: 10px;
+						width: 8px;
+						height: 8px;
 						border-radius: 50%;
 						display: inline-block;
-						margin-right: 5px;
+						flex: none;
+						margin-top: 6px;
 					}
 					.status-disconnected {
-						background-color: #ff4444;
+						background-color: var(--vscode-descriptionForeground);
+					}
+					.status-connecting {
+						background-color: var(--vscode-charts-yellow, #d7a700);
 					}
 					.status-connected {
-						background-color: #00C851;
+						background-color: var(--vscode-charts-green, #00c851);
+					}
+					.status-error {
+						background-color: var(--vscode-charts-red, #ff4444);
 					}
 					.tools-container {
-						margin-top: 20px;
+						margin-top: 24px;
 						display: none;
 					}
 					.tools-container.visible {
 						display: block;
 					}
-					.tool-item {
-						padding: 10px;
-						border: 1px solid var(--vscode-input-border);
+					.tools-header {
+						display: flex;
+						align-items: baseline;
+						justify-content: space-between;
 						margin-bottom: 10px;
-						border-radius: 3px;
-						cursor: pointer;
 					}
-					.tool-item:hover {
-						background-color: var(--vscode-list-hoverBackground);
+					.tools-header h2 {
+						margin: 0;
+						font-size: 0.95rem;
+						font-weight: 600;
+					}
+					.tool-count {
+						color: var(--vscode-descriptionForeground);
+						font-size: 11px;
 					}
 					.tool-container {
 						display: flex;
-						align-items: center;
-						margin-bottom: 10px;
-						gap: 10px;
+						align-items: stretch;
+						gap: 8px;
+						margin-bottom: 8px;
 					}
 					.tool-item {
 						flex: 1;
-						padding: 10px;
-						border: 1px solid var(--vscode-input-border);
-						border-radius: 3px;
-						cursor: pointer;
+						min-width: 0;
+						padding: 10px 12px;
+						border: 1px solid var(--vscode-input-border, transparent);
+						border-radius: 4px;
+					}
+					.tool-item strong {
+						font-family: var(--vscode-editor-font-family, monospace);
+						font-size: 12px;
+					}
+					.tool-item p {
+						margin: 4px 0 0;
+						color: var(--vscode-descriptionForeground);
+						font-size: 12px;
 					}
 					.tool-button {
-						width: 80px;
-						height: 36px;
+						width: auto;
+						min-width: 64px;
 						margin: 0;
 					}
 					/* Modal styles */
@@ -341,19 +474,33 @@ export class MCPInspectorPanel {
 						padding: 4px;
 						margin: 0;
 						flex: none;
+						background-color: transparent;
+						color: var(--vscode-icon-foreground, var(--vscode-foreground));
+						border-color: transparent;
+					}
+					.header-row .remove-btn:hover {
+						background-color: var(--vscode-toolbar-hoverBackground);
 					}
 					.add-header-btn {
 						width: auto;
 						margin-top: 4px;
 						padding: 4px 12px;
+						background-color: var(--vscode-button-secondaryBackground);
+						color: var(--vscode-button-secondaryForeground);
+					}
+					.add-header-btn:hover {
+						background-color: var(--vscode-button-secondaryHoverBackground);
 					}
 				</style>
 			</head>
 			<body>
 				<div class="container">
-					<h2>MCP Inspector</h2>
+					<header class="page-header">
+						<h1>MCP Inspector</h1>
+						<p class="page-subtitle">Connect to an MCP server, inspect its tools, and call them with your own arguments.</p>
+					</header>
 					<div class="form-group">
-						<label for="transportType">Transport Type:</label>
+						<label for="transportType">Transport</label>
 						<select id="transportType" onchange="handleTransportChange()">
 							<option value="stdio" ${this._isWeb ? 'disabled' : 'selected'}>STDIO${this._isWeb ? ' (not available on the web)' : ''}</option>
 							<option value="sse" ${this._isWeb ? 'selected' : ''}>SSE</option>
@@ -363,25 +510,29 @@ export class MCPInspectorPanel {
 
 					<!-- STDIO Section -->
 					<div id="stdioSection" class="transport-section ${this._isWeb ? '' : 'active'}">
-						${this._isWeb ? '<div class="web-note">STDIO is not available in VS Code for the Web. Use the desktop app or Codespaces, or connect to a remote SSE server.</div>' : ''}
+						${this._isWeb ? '<div class="web-note">STDIO is not available in VS Code for the Web. Use the desktop app or Codespaces, or connect to a remote server over SSE or Streamable HTTP.</div>' : ''}
 						<div class="form-group">
-							<label for="command">Server Script Path:</label>
-							<input type="text" id="command" placeholder="Enter path to server script (.js or .py)">
+							<label for="command">Command</label>
+							<div class="input-with-button">
+								<input type="text" id="command" placeholder="Path to the server script, for example ./server.js">
+								${this._isWeb ? '' : '<button type="button" id="browseCommand" onclick="pickCommand()">Browse…</button>'}
+							</div>
+							<p class="hint">A script path, or a command already on your <code>PATH</code> such as <code>npx</code>.</p>
 						</div>
 						<div class="form-group">
-							<label for="scriptArgs">Script Arguments:</label>
-							<input type="text" id="scriptArgs" placeholder="Enter script arguments (optional)">
+							<label for="scriptArgs">Arguments</label>
+							<input type="text" id="scriptArgs" placeholder="Optional, for example --port 3001">
 						</div>
 					</div>
 
 					<!-- SSE Section -->
 					<div id="sseSection" class="transport-section ${this._isWeb ? 'active' : ''}">
 						<div class="form-group">
-							<label for="serverUrl">Server URL:</label>
-							<input type="text" id="serverUrl" placeholder="Enter SSE server URL">
+							<label for="serverUrl">Server URL</label>
+							<input type="text" id="serverUrl" placeholder="https://example.com/sse">
 						</div>
 						<div class="form-group">
-							<label>Headers:</label>
+							<label>Headers</label>
 							<div id="headersList"></div>
 							<button type="button" class="add-header-btn" onclick="addHeader('sse')">+ Add header</button>
 							<p class="hint">Sent with every request, for example <code>Authorization: Bearer &lt;token&gt;</code>.</p>
@@ -391,32 +542,40 @@ export class MCPInspectorPanel {
 					<!-- Streamable HTTP Section -->
 					<div id="streamableHttpSection" class="transport-section">
 						<div class="form-group">
-							<label for="streamableHttpUrl">Server URL:</label>
-							<input type="text" id="streamableHttpUrl" placeholder="Enter Streamable HTTP server URL (for example https://host/mcp)">
+							<label for="streamableHttpUrl">Server URL</label>
+							<input type="text" id="streamableHttpUrl" placeholder="https://example.com/mcp">
 						</div>
 						<div class="form-group">
-							<label>Headers:</label>
+							<label>Headers</label>
 							<div id="streamableHttpHeadersList"></div>
 							<button type="button" class="add-header-btn" onclick="addHeader('streamable-http')">+ Add header</button>
 							<p class="hint">Sent with every request, for example <code>Authorization: Bearer &lt;token&gt;</code>.</p>
 						</div>
 					</div>
 
-					<div class="form-group">
-						<button onclick="connect()">
-							<span id="statusIndicator" class="status-indicator status-disconnected"></span>
+					<div class="button-row">
+						<button id="connectButton" onclick="connect()">
 							<span id="connectButtonText">Connect</span>
 						</button>
 					</div>
 
-					<div class="response-container">
-						<h3>Connection Status:</h3>
-						<pre id="status">Not connected</pre>
+					<div id="statusPanel" class="status">
+						<span id="statusIndicator" class="status-indicator status-disconnected"></span>
+						<div>
+							<div id="status" class="status-text">Not connected</div>
+							<details id="statusDetails" class="status-details" hidden>
+								<summary>Technical details</summary>
+								<pre id="statusDetailsText"></pre>
+							</details>
+						</div>
 					</div>
 					${relayPrompt}
 
 					<div id="toolsContainer" class="tools-container">
-						<h3>Available Tools:</h3>
+						<div class="tools-header">
+							<h2>Available tools</h2>
+							<span id="toolCount" class="tool-count"></span>
+						</div>
 						<div id="toolsList"></div>
 					</div>
 				</div>
@@ -444,10 +603,38 @@ export class MCPInspectorPanel {
 				<script>
 					const vscode = acquireVsCodeApi();
 					const isWeb = ${this._isWeb};
+					const relayBase = "${RELAY_BASE_URL}";
 					let isConnected = false;
 					let relayAttempted = false;
 					let lastTransport = 'sse';
 					let _initialized = false;
+
+					function setStatus(kind, text, details) {
+						const panel = document.getElementById('statusPanel');
+						const indicator = document.getElementById('statusIndicator');
+						const detailsBox = document.getElementById('statusDetails');
+						const detailsText = document.getElementById('statusDetailsText');
+
+						panel.className = kind ? 'status ' + kind : 'status';
+						indicator.className = 'status-indicator status-' + (kind || 'disconnected');
+						document.getElementById('status').textContent = text;
+
+						if (details) {
+							detailsText.textContent = details;
+							detailsBox.hidden = false;
+						} else {
+							detailsText.textContent = '';
+							detailsBox.hidden = true;
+						}
+					}
+
+					function setBusy(busy) {
+						const button = document.getElementById('connectButton');
+						button.disabled = busy;
+						document.getElementById('connectButtonText').textContent = busy
+							? 'Connecting…'
+							: (isConnected ? 'Disconnect' : 'Connect');
+					}
 
 					function handleTransportChange() {
 						const transportType = document.getElementById('transportType').value;
@@ -495,6 +682,14 @@ export class MCPInspectorPanel {
 						if (state.streamableHttpUrl) {
 							document.getElementById('streamableHttpUrl').value = state.streamableHttpUrl;
 						}
+					}
+
+					function pickCommand() {
+						vscode.postMessage({ command: 'pickCommand' });
+					}
+
+					function openRelayRepo() {
+						vscode.postMessage({ command: 'openRelayRepo' });
 					}
 
 					function addHeader(section = 'sse', key = '', value = '') {
@@ -554,13 +749,13 @@ export class MCPInspectorPanel {
 					function connectViaRelay() {
 						const transportType = lastTransport === 'streamable-http' ? 'streamable-http' : 'sse';
 						const upstream = getServerUrlFor(transportType);
-						const relayBase = document.getElementById('relayServer').value.replace(/\\/+$/, '');
 						if (!upstream) {
 							return;
 						}
 						relayAttempted = true;
 						hideRelayPrompt();
-						document.getElementById('status').textContent = 'Connecting through the relay...';
+						setBusy(true);
+						setStatus('', 'Connecting through the relay…');
 						const relayPath = transportType === 'streamable-http' ? '/mcp?url=' : '/sse?url=';
 						vscode.postMessage({
 							command: 'connect',
@@ -586,13 +781,17 @@ export class MCPInspectorPanel {
 						hideRelayPrompt();
 
 						if (isWeb && transportType === 'stdio') {
-							document.getElementById('status').textContent = 'STDIO is not available in VS Code for the Web.';
+							setStatus('error', 'STDIO is not available in VS Code for the Web.');
 							return;
 						}
 
 						if (transportType === 'stdio') {
-							const command = document.getElementById('command').value;
+							const command = document.getElementById('command').value.trim();
 							const args = document.getElementById('scriptArgs').value;
+							if (!command) {
+								setStatus('error', 'Enter the command that starts the server.');
+								return;
+							}
 							connectionData = {
 								transport: 'stdio',
 								command: command,
@@ -601,7 +800,7 @@ export class MCPInspectorPanel {
 						} else if (transportType === 'sse') {
 							const serverUrl = getServerUrlFor('sse');
 							if (!serverUrl) {
-								document.getElementById('status').textContent = 'Enter an SSE server URL.';
+								setStatus('error', 'Enter the SSE server URL.');
 								return;
 							}
 							connectionData = {
@@ -612,7 +811,7 @@ export class MCPInspectorPanel {
 						} else {
 							const serverUrl = getServerUrlFor('streamable-http');
 							if (!serverUrl) {
-								document.getElementById('status').textContent = 'Enter a Streamable HTTP server URL.';
+								setStatus('error', 'Enter the Streamable HTTP server URL.');
 								return;
 							}
 							connectionData = {
@@ -622,6 +821,9 @@ export class MCPInspectorPanel {
 							};
 						}
 
+						setBusy(true);
+						setStatus('', 'Connecting…');
+
 						// Send connection data to extension
 						vscode.postMessage({
 							command: 'connect',
@@ -630,50 +832,63 @@ export class MCPInspectorPanel {
 					}
 
 					function disconnect() {
+						setBusy(true);
 						vscode.postMessage({
 							command: 'disconnect'
 						});
 					}
 
-					function updateConnectionUI(connected) {
-						const statusIndicator = document.getElementById('statusIndicator');
-						const connectButtonText = document.getElementById('connectButtonText');
-						const status = document.getElementById('status');
+					function updateConnectionUI(connected, toolCount) {
 						const toolsContainer = document.getElementById('toolsContainer');
 
 						isConnected = connected;
+						document.getElementById('connectButtonText').textContent = connected ? 'Disconnect' : 'Connect';
+						document.getElementById('connectButton').classList.toggle('secondary', connected);
+						document.getElementById('connectButton').disabled = false;
 
 						if (connected) {
-							statusIndicator.className = 'status-indicator status-connected';
-							connectButtonText.textContent = 'Disconnect';
-							status.textContent = 'Connected';
+							const count = toolCount === undefined ? null : toolCount;
+							setStatus(
+								'success',
+								count === null ? 'Connected' : 'Connected · ' + count + (count === 1 ? ' tool' : ' tools')
+							);
 							toolsContainer.classList.add('visible');
 						} else {
-							statusIndicator.className = 'status-indicator status-disconnected';
-							connectButtonText.textContent = 'Connect';
-							status.textContent = 'Disconnected';
+							setStatus('', 'Not connected');
 							toolsContainer.classList.remove('visible');
 						}
 					}
 
-				function displayTools(tools) {
+					function displayTools(tools) {
 						const toolsList = document.getElementById('toolsList');
-						toolsList.innerHTML = tools.map(tool => {
+						toolsList.replaceChildren();
+						document.getElementById('toolCount').textContent = tools.length + (tools.length === 1 ? ' tool' : ' tools');
+
+						tools.forEach(tool => {
 							const schemaString = encodeURIComponent(JSON.stringify({
 								properties: tool.input_schema?.properties || {},
 								required: tool.input_schema?.required || []
 							}));
 
-							return \`
-								<div class="tool-container">
-									<div class="tool-item">
-										<strong>\${tool.name}</strong>
-										<p>\${tool.description || ''}</p>
-									</div>
-									<button class="tool-button" onclick="showToolModal('\${tool.name}', '\${schemaString}')">RUN</button>
-								</div>
-							\`;
-						}).join('');
+							const row = document.createElement('div');
+							row.className = 'tool-container';
+
+							const item = document.createElement('div');
+							item.className = 'tool-item';
+							const name = document.createElement('strong');
+							name.textContent = tool.name;
+							const description = document.createElement('p');
+							description.textContent = tool.description || '';
+							item.append(name, description);
+
+							const run = document.createElement('button');
+							run.className = 'tool-button';
+							run.textContent = 'Run';
+							run.addEventListener('click', () => showToolModal(tool.name, schemaString));
+
+							row.append(item, run);
+							toolsList.appendChild(row);
+						});
 					}
 
 					// Handle messages from the extension
@@ -685,25 +900,30 @@ export class MCPInspectorPanel {
 									updateConnectionUI(false);
 									hideRelayPrompt();
 								} else if (message.data.success) {
-									updateConnectionUI(true);
+									const tools = message.data.tools || [];
+									updateConnectionUI(true, tools.length);
 									hideRelayPrompt();
-									if (message.data.tools) {
-										displayTools(message.data.tools);
-									}
+									displayTools(tools);
 								} else {
 									updateConnectionUI(false);
 									const error = message.data.error || 'Unknown error';
-									document.getElementById('status').textContent = 'Connection failed: ' + error;
-
 									const serverUrl = getServerUrlFor(lastTransport);
-									const relayBase = document.getElementById('relayServer')?.value || '';
-									const alreadyRelay = relayBase && serverUrl.startsWith(relayBase);
-									if (isWeb && message.data.corsLikely && !relayAttempted && !alreadyRelay) {
-										document.getElementById('relayErrorMessage').textContent = error;
+									const alreadyRelay = serverUrl.startsWith(relayBase);
+									const offerRelay = isWeb && message.data.corsLikely && !relayAttempted && !alreadyRelay;
+
+									// The callout explains the failure when it is shown, so do not repeat it here.
+									setStatus('error', offerRelay ? 'Connection failed.' : error, message.data.details);
+									if (offerRelay) {
 										document.getElementById('relayPrompt').style.display = 'block';
 									}
 								}
 								break;
+							case 'commandPicked': {
+								const commandInput = document.getElementById('command');
+								commandInput.value = message.data.path;
+								commandInput.dispatchEvent(new Event('input'));
+								break;
+							}
 						}
 					});
 
@@ -731,7 +951,13 @@ export class MCPInspectorPanel {
 
 							const label = document.createElement('label');
 							label.htmlFor = key;
-							label.innerHTML = \`\${key}\${isRequired ? ' <span class="required-field">*</span>' : ''}\`;
+							label.textContent = key;
+							if (isRequired) {
+								const marker = document.createElement('span');
+								marker.className = 'required-field';
+								marker.textContent = '*';
+								label.append(' ', marker);
+							}
 							
 							const input = document.createElement('input');
 							input.type = 'text';
@@ -890,6 +1116,7 @@ export class MCPInspectorPanel {
 					data: {
 						success: false,
 						error: result.error,
+						details: result.details,
 						corsLikely: result.corsLikely
 					}
 				});
@@ -933,6 +1160,7 @@ export class MCPInspectorPanel {
 					data: {
 						success: false,
 						error: result.error,
+						details: result.details,
 						corsLikely: result.corsLikely
 					}
 				});
@@ -948,6 +1176,28 @@ export class MCPInspectorPanel {
 		}
 	}
 
+
+	private async handlePickCommand() {
+		const selection = await vscode.window.showOpenDialog({
+			canSelectFiles: true,
+			canSelectFolders: false,
+			canSelectMany: false,
+			openLabel: 'Use as command',
+			title: 'Select the MCP server script',
+			filters: {
+				'Server scripts': ['js', 'mjs', 'cjs', 'ts', 'py', 'sh', 'rb', 'exe', 'cmd', 'bat'],
+				'All files': ['*'],
+			},
+		});
+
+		const picked = selection?.[0];
+		if (picked) {
+			this._panel.webview.postMessage({
+				command: 'commandPicked',
+				data: { path: picked.fsPath },
+			});
+		}
+	}
 
     private async handleMCPDisconnect(){
         if (this._mcpClient) {
