@@ -1,8 +1,8 @@
-## [0.0.4](https://github.com/[secure]/mcp-inspector/compare/v0.0.3...v0.0.4) (2026-11-01)
+## [0.0.4](https://github.com/Dhananjay-JSR/mcp-inspector/compare/v0.0.3...v0.0.4) (2026-11-01)
 
 ### Bug Fixes
 
-* **ci:** run the release workflow on node 22 ([#15](https://github.com/[secure]/mcp-inspector/issues/15)) ([01c8392](https://github.com/[secure]/mcp-inspector/commit/01c83920067ff3391e8c38c63908c092712619e6))
+* **ci:** run the release workflow on node 22 ([#15](https://github.com/Dhananjay-JSR/mcp-inspector/issues/15)) ([01c8392](https://github.com/Dhananjay-JSR/mcp-inspector/commit/01c83920067ff3391e8c38c63908c092712619e6))
 
 # Change Log
 
