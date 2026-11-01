@@ -1,3 +1,9 @@
+## [0.2.1](https://github.com/[secure]/mcp-inspector/compare/v0.2.0...v0.2.1) (2026-11-01)
+
+### Bug Fixes
+
+* simplify the CORS failure message ([#29](https://github.com/[secure]/mcp-inspector/issues/29)) ([e146730](https://github.com/[secure]/mcp-inspector/commit/e14673082a822472abb514a46b1f2822e72e37de))
+
 ## [0.2.0](https://github.com/[secure]/mcp-inspector/compare/v0.1.0...v0.2.0) (2026-11-01)
 
 ### Features
