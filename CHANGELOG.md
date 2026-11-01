@@ -1,3 +1,9 @@
+## [0.7.0](https://github.com/[secure]/mcp-[secure]/compare/v0.6.0...v0.7.0) (2026-11-01)
+
+### Features
+
+* add TLS file pickers to the [secure] panel ([1d3f07b](https://github.com/[secure]/mcp-[secure]/commit/1d3f07b802595ed5cd87a72c6ee318466cdc25f9))
+
 ## [0.6.0](https://github.com/[secure]/mcp-[secure]/compare/v0.5.1...v0.6.0) (2026-11-01)
 
 ### Features
