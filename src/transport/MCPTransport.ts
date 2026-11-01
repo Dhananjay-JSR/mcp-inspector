@@ -10,6 +10,8 @@ import * as vscode from "vscode";
 import { OAuthCallbackServer, SecretStorageOAuthProvider, supportsOAuth } from "../auth/oauth";
 import { describeFailure } from "./errorHints";
 import { connectWithFallback } from "./remote";
+import { createTlsFetch } from "./tls";
+import type { TlsConfig, TlsFetch } from "./tls";
 import type {
   ConnectionResult,
   HeadersMap,
@@ -43,8 +45,12 @@ export class MCPClient implements IMCPClient {
     | StreamableHTTPClientTransport
     | null = null;
   private tools: Tool[] = [];
+  private tlsFetch?: TlsFetch;
 
-  constructor(private readonly secrets?: vscode.SecretStorage) {
+  constructor(
+    private readonly secrets?: vscode.SecretStorage,
+    private readonly tls: TlsConfig = {},
+  ) {
     this.mcp = new Client({ name: "mcp-debugger-vscode-extension", version: "1.0.0" });
   }
 
@@ -78,6 +84,7 @@ export class MCPClient implements IMCPClient {
     serverUrl: string,
     headers?: HeadersMap,
     authProvider?: OAuthClientProvider,
+    tlsFetch?: TlsFetch,
   ): Promise<ConnectionResult> {
     try {
       if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
@@ -88,6 +95,9 @@ export class MCPClient implements IMCPClient {
       const options: SSEClientTransportOptions = { ...(requestOptions(headers) ?? {}) };
       if (authProvider) {
         options.authProvider = authProvider;
+      }
+      if (tlsFetch) {
+        options.fetch = tlsFetch;
       }
       this.transport = new SSEClientTransport(new URL(serverUrl), options);
 
@@ -119,6 +129,7 @@ export class MCPClient implements IMCPClient {
     serverUrl: string,
     headers?: HeadersMap,
     authProvider?: OAuthClientProvider,
+    tlsFetch?: TlsFetch,
   ): Promise<ConnectionResult> {
     try {
       if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
@@ -129,6 +140,9 @@ export class MCPClient implements IMCPClient {
       const options: StreamableHTTPClientTransportOptions = { ...(requestOptions(headers) ?? {}) };
       if (authProvider) {
         options.authProvider = authProvider;
+      }
+      if (tlsFetch) {
+        options.fetch = tlsFetch;
       }
       this.transport = new StreamableHTTPClientTransport(new URL(serverUrl), options);
 
@@ -163,6 +177,15 @@ export class MCPClient implements IMCPClient {
     authMode: "oauth" | "static" = "oauth",
   ): Promise<ConnectionResult> {
     const endpoint = endpointOf(serverUrl);
+    await this.closeTlsFetch();
+    try {
+      this.tlsFetch = await createTlsFetch(this.tls);
+    } catch (error) {
+      return {
+        success: false,
+        error: `TLS configuration error: ${error instanceof Error ? error.message : "could not load TLS material"}`,
+      };
+    }
     const useOAuth = authMode !== "static" && !!this.secrets && supportsOAuth(serverUrl);
     const callback = useOAuth ? new OAuthCallbackServer() : null;
     const usingRelay = Boolean(relayBase);
@@ -184,8 +207,8 @@ export class MCPClient implements IMCPClient {
         authProvider?: OAuthClientProvider,
       ) =>
         transport === "sse"
-          ? this.connectToSSE(target, requestHeaders, authProvider)
-          : this.connectToStreamableHTTP(target, requestHeaders, authProvider);
+          ? this.connectToSSE(target, requestHeaders, authProvider, this.tlsFetch)
+          : this.connectToStreamableHTTP(target, requestHeaders, authProvider, this.tlsFetch);
 
       const result = await connectWithFallback(
         serverUrl,
@@ -208,7 +231,7 @@ export class MCPClient implements IMCPClient {
           try {
             if (usingRelay) {
               onPhase?.("Server requires sign-in. Opening your browser…");
-              const redirect = await auth(provider, { serverUrl });
+              const redirect = await auth(provider, { serverUrl, fetchFn: this.tlsFetch });
               if (redirect === "AUTHORIZED") {
                 const tokens = await provider.tokens();
                 if (!tokens?.access_token) {
@@ -232,7 +255,7 @@ export class MCPClient implements IMCPClient {
               );
 
               onPhase?.("Exchanging authorization code…");
-              await auth(provider, { serverUrl, authorizationCode: code });
+              await auth(provider, { serverUrl, authorizationCode: code, fetchFn: this.tlsFetch });
               const tokens = await provider.tokens();
               if (!tokens?.access_token) {
                 throw new Error("Sign-in did not return an access token");
@@ -255,7 +278,7 @@ export class MCPClient implements IMCPClient {
               (_progress, token) => callback.waitForCode(provider.stateValue, token),
             );
             onPhase?.("Exchanging authorization code…");
-            await auth(provider, { serverUrl: target, authorizationCode: code });
+            await auth(provider, { serverUrl: target, authorizationCode: code, fetchFn: this.tlsFetch });
             onPhase?.("Retrying the connection…");
             return await attempt(transport, target, headers, provider);
           } catch (error) {
@@ -300,5 +323,12 @@ export class MCPClient implements IMCPClient {
       this.transport = null;
       this.tools = [];
     }
+    await this.closeTlsFetch();
+  }
+
+  private async closeTlsFetch(): Promise<void> {
+    const tlsFetch = this.tlsFetch;
+    this.tlsFetch = undefined;
+    await tlsFetch?.close().catch(() => undefined);
   }
 }

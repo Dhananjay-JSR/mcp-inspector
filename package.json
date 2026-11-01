@@ -69,6 +69,29 @@
           "type": "webview"
         }
       ]
+    },
+    "configuration": {
+      "title": "MCP Inspector",
+      "properties": {
+        "mcp--inspector.tls.caFile": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "markdownDescription": "Path to a PEM certificate authority bundle used to verify the MCP server. Use this for server certificates signed by a private CA. Desktop app only; the browser controls TLS in VS Code for the Web."
+        },
+        "mcp--inspector.tls.clientCertFile": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "markdownDescription": "Path to a PEM client certificate presented to servers that require mutual TLS (mTLS). Must be set together with `#mcp--inspector.tls.clientKeyFile#`. Desktop app only."
+        },
+        "mcp--inspector.tls.clientKeyFile": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "markdownDescription": "Path to the PEM private key for `#mcp--inspector.tls.clientCertFile#`. The key is read from disk at connect time and is never stored in settings. Desktop app only."
+        }
+      }
     }
   },
   "scripts": {
@@ -115,6 +138,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.32.2"
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "undici": "^6.29.1"
   }
 }

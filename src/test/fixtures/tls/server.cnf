@@ -1,0 +1,17 @@
+[req]
+distinguished_name = dn
+prompt = no
+[dn]
+CN = localhost
+O = MCP Inspector Tests
+[v3_server]
+basicConstraints = critical,CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer
+[alt]
+DNS.1 = localhost
+IP.1 = 127.0.0.1
+IP.2 = ::1
