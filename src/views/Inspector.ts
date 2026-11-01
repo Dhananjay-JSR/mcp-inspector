@@ -65,6 +65,10 @@ export class MCPInspectorPanel {
 			column || vscode.ViewColumn.One,
 			{
 				enableScripts: true,
+				// Keep the typed URLs, headers, and tool list in memory when the
+				// panel is hidden. Secrets are deliberately never written to
+				// webview state, so this is what preserves them across tab switches.
+				retainContextWhenHidden: true,
 				localResourceRoots: [extensionUri]
 			}
 		);
@@ -443,12 +447,54 @@ export class MCPInspectorPanel {
 					let isConnected = false;
 					let relayAttempted = false;
 					let lastTransport = 'sse';
+					let _initialized = false;
 
 					function handleTransportChange() {
 						const transportType = document.getElementById('transportType').value;
 						document.getElementById('stdioSection').classList.toggle('active', transportType === 'stdio');
 						document.getElementById('sseSection').classList.toggle('active', transportType === 'sse');
 						document.getElementById('streamableHttpSection').classList.toggle('active', transportType === 'streamable-http');
+						saveState();
+					}
+
+					function saveState() {
+						if (!_initialized) {
+							return;
+						}
+						vscode.setState({
+							transportType: document.getElementById('transportType').value,
+							command: document.getElementById('command').value,
+							scriptArgs: document.getElementById('scriptArgs').value,
+							serverUrl: document.getElementById('serverUrl').value,
+							streamableHttpUrl: document.getElementById('streamableHttpUrl').value
+						});
+					}
+
+					function restoreState() {
+						const state = vscode.getState();
+						if (!state) {
+							return;
+						}
+
+						if (state.transportType && !(isWeb && state.transportType === 'stdio')) {
+							document.getElementById('transportType').value = state.transportType;
+							const transportType = state.transportType;
+							document.getElementById('stdioSection').classList.toggle('active', transportType === 'stdio');
+							document.getElementById('sseSection').classList.toggle('active', transportType === 'sse');
+							document.getElementById('streamableHttpSection').classList.toggle('active', transportType === 'streamable-http');
+						}
+						if (state.command) {
+							document.getElementById('command').value = state.command;
+						}
+						if (state.scriptArgs) {
+							document.getElementById('scriptArgs').value = state.scriptArgs;
+						}
+						if (state.serverUrl) {
+							document.getElementById('serverUrl').value = state.serverUrl;
+						}
+						if (state.streamableHttpUrl) {
+							document.getElementById('streamableHttpUrl').value = state.streamableHttpUrl;
+						}
 					}
 
 					function addHeader(section = 'sse', key = '', value = '') {
@@ -744,6 +790,12 @@ export class MCPInspectorPanel {
 								responseContent.textContent = JSON.stringify(message.data, null, 2);
 								break;
 						}
+					});
+
+					restoreState();
+					_initialized = true;
+					['command', 'scriptArgs', 'serverUrl', 'streamableHttpUrl'].forEach(id => {
+						document.getElementById(id).addEventListener('input', saveState);
 					});
 				</script>
 			</body>
