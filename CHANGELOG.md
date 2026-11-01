@@ -1,3 +1,19 @@
+## [0.5.0](https://github.com/[secure]/mcp-inspector/compare/v0.4.0...v0.5.0) (2026-11-01)
+
+### Features
+
+* **auth:** add a shared OAuth provider and callbacks ([b27a196](https://github.com/[secure]/mcp-inspector/commit/b27a196572ef411deab0b2d62e6f4d35d1d29f32))
+* **transport:** sign in to OAuth-protected servers ([88ca6fa](https://github.com/[secure]/mcp-inspector/commit/88ca6fab38e9ace4b66b4cd3a4d16acb68cbdde4))
+* **ui:** choose sign-in or a static token ([493db1e](https://github.com/[secure]/mcp-inspector/commit/493db1e43456a83dad7eb926cc762cfdd8bb735b))
+* **ui:** pretty-print results and copy them ([c353a2f](https://github.com/[secure]/mcp-inspector/commit/c353a2ff18ec6f4f3d675c3a2be24df2a9f77ba2))
+* **ui:** show tool execution progress and results ([7d7aed0](https://github.com/[secure]/mcp-inspector/commit/7d7aed0e495451f04418d44f15b928924ec7c76c))
+
+### Bug Fixes
+
+* **auth:** keep the web OAuth callback valid ([f065fe2](https://github.com/[secure]/mcp-inspector/commit/f065fe21fb37940a01d96910c13c5609d7084137))
+* **ui:** drop duplicate connection notifications ([a3dcb43](https://github.com/[secure]/mcp-inspector/commit/a3dcb4301982131d42e1fdb54167c3269542ebb6))
+* **ui:** escape the newline in the webview result renderer ([7a03133](https://github.com/[secure]/mcp-inspector/commit/7a03133e313e0db593bbd3d976fb6ee663307aba))
+
 ## [0.4.0](https://github.com/[secure]/mcp-inspector/compare/v0.3.1...v0.4.0) (2026-11-01)
 
 ### Features
