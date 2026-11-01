@@ -1,0 +1,60 @@
+{
+  "branches": [
+    "main"
+  ],
+  "tagFormat": "v${version}",
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits"
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits"
+      }
+    ],
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md"
+      }
+    ],
+    [
+      "@semantic-release/npm",
+      {
+        "npmPublish": false
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "mkdir -p dist && yarn vsce package --out \"dist/mcp-inspector-${nextRelease.version}.vsix\"",
+        "publishCmd": "if [ -n \"$VSCE_PAT\" ]; then yarn vsce publish --packagePath \"dist/mcp-inspector-${nextRelease.version}.vsix\"; else echo 'VSCE_PAT is not configured, skipping VS Code Marketplace publish'; fi"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "CHANGELOG.md",
+          "package.json"
+        ],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {
+            "path": "dist/mcp-inspector-*.vsix",
+            "label": "MCP Inspector VSIX"
+          }
+        ]
+      }
+    ]
+  ]
+}
