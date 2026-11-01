@@ -20,6 +20,8 @@ export interface ConnectionResult {
   details?: string;
   /** Set when a remote connection succeeded, so the UI can name the transport. */
   transport?: RemoteTransport;
+  /** The server answered 401 and needs an OAuth sign-in. */
+  authRequired?: boolean;
   corsLikely?: boolean;
 }
 
@@ -39,6 +41,8 @@ export interface IMCPClient {
     serverUrl: string,
     headers?: HeadersMap,
     relayBase?: string,
+    onPhase?: (message: string) => void,
+    authMode?: "oauth" | "static",
   ): Promise<ConnectionResult>;
   executeTool(toolName: string, toolArgs: Record<string, unknown>): Promise<ToolResult>;
   disconnect(): Promise<void>;

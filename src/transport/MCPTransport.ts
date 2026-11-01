@@ -1,8 +1,13 @@
+import { auth, UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
+import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import type { SSEClientTransportOptions } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { StreamableHTTPClientTransportOptions } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import * as vscode from "vscode";
+import { OAuthCallbackServer, SecretStorageOAuthProvider, supportsOAuth } from "../auth/oauth";
 import { describeFailure } from "./errorHints";
 import { connectWithFallback } from "./remote";
 import type {
@@ -39,7 +44,7 @@ export class MCPClient implements IMCPClient {
     | null = null;
   private tools: Tool[] = [];
 
-  constructor() {
+  constructor(private readonly secrets?: vscode.SecretStorage) {
     this.mcp = new Client({ name: "mcp-debugger-vscode-extension", version: "1.0.0" });
   }
 
@@ -77,17 +82,22 @@ export class MCPClient implements IMCPClient {
     }
   }
 
-  async connectToSSE(serverUrl: string, headers?: HeadersMap): Promise<ConnectionResult> {
+  async connectToSSE(
+    serverUrl: string,
+    headers?: HeadersMap,
+    authProvider?: OAuthClientProvider,
+  ): Promise<ConnectionResult> {
     try {
       if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
         throw new Error("Server URL must start with http:// or https://");
       }
 
       this.mcp = new Client({ name: "mcp-debugger-vscode-extension", version: "1.0.0" });
-      this.transport = new SSEClientTransport(
-        new URL(serverUrl),
-        requestOptions(headers),
-      );
+      const options: SSEClientTransportOptions = { ...(requestOptions(headers) ?? {}) };
+      if (authProvider) {
+        options.authProvider = authProvider;
+      }
+      this.transport = new SSEClientTransport(new URL(serverUrl), options);
 
       await this.mcp.connect(this.transport);
 
@@ -104,6 +114,9 @@ export class MCPClient implements IMCPClient {
       );
       return { success: true, tools: this.tools };
     } catch (e) {
+      if (e instanceof UnauthorizedError) {
+        return { success: false, authRequired: true, error: "This server requires sign-in." };
+      }
       const raw = e instanceof Error ? e.message : "Unknown error occurred";
       const failure = describeFailure(raw, endpointOf(serverUrl));
       return { success: false, error: failure.message, details: failure.details };
@@ -113,6 +126,7 @@ export class MCPClient implements IMCPClient {
   async connectToStreamableHTTP(
     serverUrl: string,
     headers?: HeadersMap,
+    authProvider?: OAuthClientProvider,
   ): Promise<ConnectionResult> {
     try {
       if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
@@ -120,10 +134,11 @@ export class MCPClient implements IMCPClient {
       }
 
       this.mcp = new Client({ name: "mcp-debugger-vscode-extension", version: "1.0.0" });
-      this.transport = new StreamableHTTPClientTransport(
-        new URL(serverUrl),
-        requestOptions(headers),
-      );
+      const options: StreamableHTTPClientTransportOptions = { ...(requestOptions(headers) ?? {}) };
+      if (authProvider) {
+        options.authProvider = authProvider;
+      }
+      this.transport = new StreamableHTTPClientTransport(new URL(serverUrl), options);
 
       await this.mcp.connect(this.transport);
 
@@ -139,6 +154,9 @@ export class MCPClient implements IMCPClient {
       );
       return { success: true, tools: this.tools };
     } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        return { success: false, authRequired: true, error: "This server requires sign-in." };
+      }
       const raw = error instanceof Error ? error.message : "Unknown error occurred";
       const failure = describeFailure(raw, endpointOf(serverUrl));
       return { success: false, error: failure.message, details: failure.details };
@@ -149,17 +167,122 @@ export class MCPClient implements IMCPClient {
     serverUrl: string,
     headers?: HeadersMap,
     relayBase?: string,
+    onPhase?: (message: string) => void,
+    authMode: "oauth" | "static" = "oauth",
   ): Promise<ConnectionResult> {
-    const result = await connectWithFallback(serverUrl, { relayBase }, (transport, target) =>
-      transport === "sse"
-        ? this.connectToSSE(target, headers)
-        : this.connectToStreamableHTTP(target, headers),
-    );
+    const endpoint = endpointOf(serverUrl);
+    const useOAuth = authMode !== "static" && !!this.secrets && supportsOAuth(serverUrl);
+    const callback = useOAuth ? new OAuthCallbackServer() : null;
+    const usingRelay = Boolean(relayBase);
 
-    if (!result.success) {
-      vscode.window.showErrorMessage(`Failed to connect to MCP server: ${result.error}`);
+    try {
+      if (callback) {
+        await callback.start();
+      }
+
+      const provider =
+        useOAuth && endpoint && this.secrets
+          ? new SecretStorageOAuthProvider(this.secrets, endpoint, callback as OAuthCallbackServer)
+          : null;
+
+      const attempt = (
+        transport: "sse" | "streamable-http",
+        target: string,
+        requestHeaders: HeadersMap | undefined,
+        authProvider?: OAuthClientProvider,
+      ) =>
+        transport === "sse"
+          ? this.connectToSSE(target, requestHeaders, authProvider)
+          : this.connectToStreamableHTTP(target, requestHeaders, authProvider);
+
+      const result = await connectWithFallback(
+        serverUrl,
+        { relayBase },
+        async (transport, target) => {
+          const label = transport === "sse" ? "SSE" : "Streamable HTTP";
+          onPhase?.(`Trying ${label}${usingRelay ? " through the relay" : ""}…`);
+
+          const first = await attempt(
+            transport,
+            target,
+            headers,
+            usingRelay ? undefined : provider ?? undefined,
+          );
+
+          if (!first.authRequired || !provider || !callback) {
+            return first;
+          }
+
+          try {
+            if (usingRelay) {
+              onPhase?.("Server requires sign-in. Opening your browser…");
+              const redirect = await auth(provider, { serverUrl });
+              if (redirect === "AUTHORIZED") {
+                const tokens = await provider.tokens();
+                if (!tokens?.access_token) {
+                  throw new Error("Sign-in did not return an access token");
+                }
+                onPhase?.("Retrying with the access token…");
+                return await attempt(transport, target, {
+                  ...headers,
+                  Authorization: `Bearer ${tokens.access_token}`,
+                });
+              }
+
+              onPhase?.("Waiting for sign-in in your browser…");
+              const code = await vscode.window.withProgress(
+                {
+                  location: vscode.ProgressLocation.Notification,
+                  title: "Waiting for MCP sign-in in your browser",
+                  cancellable: true,
+                },
+                (_progress, token) => callback.waitForCode(provider.stateValue, token),
+              );
+
+              onPhase?.("Exchanging authorization code…");
+              await auth(provider, { serverUrl, authorizationCode: code });
+              const tokens = await provider.tokens();
+              if (!tokens?.access_token) {
+                throw new Error("Sign-in did not return an access token");
+              }
+
+              onPhase?.("Retrying with the access token…");
+              return await attempt(transport, target, {
+                ...headers,
+                Authorization: `Bearer ${tokens.access_token}`,
+              });
+            }
+
+            onPhase?.("Waiting for sign-in in your browser…");
+            const code = await vscode.window.withProgress(
+              {
+                location: vscode.ProgressLocation.Notification,
+                title: "Waiting for MCP sign-in in your browser",
+                cancellable: true,
+              },
+              (_progress, token) => callback.waitForCode(provider.stateValue, token),
+            );
+            onPhase?.("Exchanging authorization code…");
+            await auth(provider, { serverUrl: target, authorizationCode: code });
+            onPhase?.("Retrying the connection…");
+            return await attempt(transport, target, headers, provider);
+          } catch (error) {
+            return {
+              success: false,
+              authRequired: true,
+              error: error instanceof Error ? error.message : "Sign-in failed",
+            };
+          }
+        },
+      );
+
+      if (!result.success) {
+        vscode.window.showErrorMessage(`Failed to connect to MCP server: ${result.error}`);
+      }
+      return result;
+    } finally {
+      callback?.close();
     }
-    return result;
   }
 
   async executeTool(
