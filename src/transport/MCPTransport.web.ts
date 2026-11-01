@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import * as vscode from "vscode";
+import { describeFailure } from "./errorHints";
 import type {
   ConnectionResult,
   HeadersMap,
@@ -27,6 +28,14 @@ function requestOptions(
   return headers && Object.keys(headers).length > 0
     ? { requestInit: { headers } }
     : undefined;
+}
+
+function endpointOf(serverUrl: string): URL | null {
+  try {
+    return new URL(serverUrl);
+  } catch {
+    return null;
+  }
 }
 
 export class MCPClient implements IMCPClient {
@@ -63,7 +72,7 @@ export class MCPClient implements IMCPClient {
       );
       return { success: true, tools: this.tools };
     } catch (error) {
-      return this.failure(error, "SSE");
+      return this.failure(error, "SSE", serverUrl);
     }
   }
 
@@ -94,28 +103,31 @@ export class MCPClient implements IMCPClient {
       );
       return { success: true, tools: this.tools };
     } catch (error) {
-      return this.failure(error, "Streamable HTTP");
+      return this.failure(error, "Streamable HTTP", serverUrl);
     }
   }
 
-  private failure(error: unknown, transportLabel: string): ConnectionResult {
+  private failure(
+    error: unknown,
+    transportLabel: string,
+    serverUrl: string,
+  ): ConnectionResult {
     const raw = error instanceof Error ? error.message : "Unknown error occurred";
-
-    if (looksLikeNetworkError(error, raw)) {
-      // The SDK reports a bare "Failed to fetch" here. Say what the user can act
-      // on and keep the raw text behind a details toggle.
-      const message =
-        "Could not reach the server. The browser blocked this cross-origin request.";
-      vscode.window.showErrorMessage(
-        `Failed to connect to MCP server via ${transportLabel}: ${message}`,
-      );
-      return { success: false, error: message, details: raw, corsLikely: true };
-    }
+    const failure = describeFailure(
+      raw,
+      endpointOf(serverUrl),
+      looksLikeNetworkError(error, raw),
+    );
 
     vscode.window.showErrorMessage(
-      `Failed to connect to MCP server via ${transportLabel}: ${raw}`,
+      `Failed to connect to MCP server via ${transportLabel}: ${failure.message}`,
     );
-    return { success: false, error: raw };
+    return {
+      success: false,
+      error: failure.message,
+      details: failure.details,
+      corsLikely: failure.corsLikely,
+    };
   }
 
   async executeTool(

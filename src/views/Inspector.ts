@@ -910,9 +910,12 @@ export class MCPInspectorPanel {
 									const serverUrl = getServerUrlFor(lastTransport);
 									const alreadyRelay = serverUrl.startsWith(relayBase);
 									const offerRelay = isWeb && message.data.corsLikely && !relayAttempted && !alreadyRelay;
+									const details = message.data.details && message.data.details !== error
+										? message.data.details
+										: undefined;
 
 									// The callout explains the failure when it is shown, so do not repeat it here.
-									setStatus('error', offerRelay ? 'Connection failed.' : error, message.data.details);
+									setStatus('error', offerRelay ? 'Connection failed.' : error, details);
 									if (offerRelay) {
 										document.getElementById('relayPrompt').style.display = 'block';
 									}

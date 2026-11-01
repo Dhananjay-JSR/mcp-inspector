@@ -109,6 +109,7 @@ const relayUrl = `https://mcp-relay.dhananjaay.dev/mcp?url=${encodeURIComponent(
 | STDIO option is disabled | Expected in the browser; use desktop or Codespaces |
 | Local server fails only in the browser | The server rejected the `https://vscode.dev` origin |
 | `404` or `410` on connect | Wrong endpoint or transport: try `/mcp` (Streamable HTTP) instead of `/sse` |
+| `405 Method Not Allowed` | The URL is the host root; a Streamable HTTP server usually lives at `/mcp` |
 | `401` with a header set | The token or header name is wrong; the value is not shown back to you |
 
 When in doubt, test the server from `https://vscode.dev` with the relay first. If

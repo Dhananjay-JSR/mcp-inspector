@@ -3,6 +3,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import * as vscode from "vscode";
+import { describeFailure } from "./errorHints";
 import type {
   ConnectionResult,
   HeadersMap,
@@ -18,6 +19,14 @@ function requestOptions(
   return headers && Object.keys(headers).length > 0
     ? { requestInit: { headers } }
     : undefined;
+}
+
+function endpointOf(serverUrl: string): URL | null {
+  try {
+    return new URL(serverUrl);
+  } catch {
+    return null;
+  }
 }
 
 export class MCPClient implements IMCPClient {
@@ -93,9 +102,10 @@ export class MCPClient implements IMCPClient {
       );
       return { success: true, tools: this.tools };
     } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : "Unknown error occurred";
-      vscode.window.showErrorMessage(`Failed to connect to MCP server via SSE: ${errorMessage}`);
-      return { success: false, error: errorMessage };
+      const raw = e instanceof Error ? e.message : "Unknown error occurred";
+      const failure = describeFailure(raw, endpointOf(serverUrl));
+      vscode.window.showErrorMessage(`Failed to connect to MCP server via SSE: ${failure.message}`);
+      return { success: false, error: failure.message, details: failure.details };
     }
   }
 
@@ -127,11 +137,12 @@ export class MCPClient implements IMCPClient {
       );
       return { success: true, tools: this.tools };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      const raw = error instanceof Error ? error.message : "Unknown error occurred";
+      const failure = describeFailure(raw, endpointOf(serverUrl));
       vscode.window.showErrorMessage(
-        `Failed to connect to MCP server via Streamable HTTP: ${errorMessage}`,
+        `Failed to connect to MCP server via Streamable HTTP: ${failure.message}`,
       );
-      return { success: false, error: errorMessage };
+      return { success: false, error: failure.message, details: failure.details };
     }
   }
 
