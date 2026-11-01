@@ -1,3 +1,9 @@
+## [0.7.2](https://github.com/[secure]/mcp-[secure]/compare/v0.7.1...v0.7.2) (2026-11-01)
+
+### Bug Fixes
+
+* restore web OAuth callbacks and failure notifications ([35406da](https://github.com/[secure]/mcp-[secure]/commit/35406da14c0cc794835bfc5544e9960af5a22f90))
+
 ## [0.7.1](https://github.com/[secure]/mcp-[secure]/compare/v0.7.0...v0.7.1) (2026-11-01)
 
 ### Bug Fixes
