@@ -10,96 +10,69 @@
 </div>
 
 [![CI](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/ci.yml/badge.svg)](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/ci.yml)
+[![Conventional Commits](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/commitlint.yml/badge.svg)](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/commitlint.yml)
 [![CodeQL](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/codeql.yml/badge.svg)](https://github.com/Dhananjay-JSR/mcp-inspector/actions/workflows/codeql.yml)
+[![Marketplace](https://img.shields.io/visual-studio-marketplace/v/DhananjaySenday.mcp--inspector?label=marketplace)](https://marketplace.visualstudio.com/items?itemName=DhananjaySenday.mcp--inspector)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/DhananjaySenday.mcp--inspector)](https://marketplace.visualstudio.com/items?itemName=DhananjaySenday.mcp--inspector)
 
-Easily inspect and interact with MCP servers directly from Visual Studio Code—no need to download external inspectors. This extension provides seamless integration for monitoring and debugging MCP protocols within your development environment.
+Inspect, debug and interact with [Model Context Protocol](https://modelcontextprotocol.io)
+servers without leaving Visual Studio Code. MCP Inspector connects to a server,
+lists the tools it exposes, and lets you run them with your own arguments — no
+separate inspector process required.
 
+## Features
+
+- Connect to MCP servers over **STDIO** (a local script) or **SSE** (a URL)
+- Browse every tool a server exposes, including its input schema
+- Execute tools with custom JSON arguments and inspect the result
+- Work from a dedicated sidebar view or a full inspector panel
+- Run entirely inside VS Code, with no external tooling
+
+## Installation
+
+Install **MCP Inspector** from the
+[Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=DhananjaySenday.mcp--inspector),
+or download the latest `.vsix` from
+[GitHub Releases](https://github.com/Dhananjay-JSR/mcp-inspector/releases) and run:
+
+```bash
+code --install-extension mcp-inspector-<version>.vsix
+```
 
 ## Usage
 
-1. Click on the MCP Inspector icon in the activity bar
-2. Use the "Create New MCP Request" command to start interacting with MCP servers
-3. View and manage your MCP operations through extension
+1. Select the **MCP Inspector** icon in the activity bar.
+2. Run the **Create New MCP Request** command from the Command Palette.
+3. Choose the transport:
+   - **STDIO** — enter the path to the MCP server script and optional arguments
+   - **SSE** — enter the server URL
+4. Connect, select a tool, and run it with JSON arguments.
 
-## Extension Settings
-
-This extension contributes the following commands:
-
-* `mcp-inspector.createNewRequest`: Create a new MCP request
-
-## Known Issues
-
-Please report any issues on the [GitHub repository](https://github.com/Dhananjay-JSR/mcp-inspector/issues).
-
-## Development
-
-### Prerequisites
-
-- Node.js 20+
-- Yarn 1.x
-
-### Scripts
+## Commands
 
 | Command | Description |
 | --- | --- |
-| `yarn install` | Install dependencies |
-| `yarn compile` | Compile the extension with TypeScript |
-| `yarn watch` | Compile in watch mode |
-| `yarn lint` | Run ESLint |
-| `yarn test` | Run the VS Code extension test suite |
-| `yarn package` | Build a `.vsix` package |
-| `yarn release` | Run semantic-release locally (CI does this automatically) |
+| `mcp--inspector.createNewRequest` | Open the MCP Inspector panel and start a new request |
 
-### Continuous Integration
+## Requirements
 
-Every push and pull request to `main` runs the following automated checks:
+- Visual Studio Code `1.98.0` or newer
 
-- **Build & lint** on Ubuntu, macOS, and Windows
-- **Extension tests** on Linux using a virtual display (`xvfb`)
-- **VSIX packaging** with the packaged extension uploaded as a build artifact
+## Contributing
 
-CodeQL security analysis runs on pushes, pull requests, and on a weekly schedule. Dependabot keeps npm and GitHub Actions dependencies up to date.
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for local setup,
+commit conventions, and the pull request process.
 
-Pull request titles are validated against [Conventional Commits](https://www.conventionalcommits.org/) because squash merges use the PR title as the commit message on `main`.
+## Known Issues
 
-### Automated Releases
-
-Releases are fully automated with [semantic-release](https://semantic-release.gitbook.io/). After CI passes on `main`, the release workflow inspects the commits since the last tag and creates a release only when a change warrants one:
-
-| Commit type | Example | Version bump |
-| --- | --- | --- |
-| `fix:` | `fix: handle SSE reconnect` | Patch (`0.0.3` → `0.0.4`) |
-| `feat:` | `feat: add tool call support` | Minor (`0.0.4` → `0.1.0`) |
-| `feat!:` / `BREAKING CHANGE:` | `feat!: redesign transport API` | Major (`0.1.0` → `1.0.0`) |
-| `chore:`, `docs:`, `ci:`, `test:`, `build:` | `docs: update usage` | No release |
-
-The workflow then:
-
-1. Bumps `package.json` and updates `CHANGELOG.md`
-2. Commits the release and creates the `v<version>` tag
-3. Builds `mcp-inspector-<version>.vsix`
-4. Publishes a GitHub release with the VSIX attached
-5. Publishes to the VS Code Marketplace when a `VSCE_PAT` repository secret is configured
-
-No manual tagging is required. Configure `VSCE_PAT` under **Settings → Secrets and variables → Actions** to also publish to the Marketplace.
-
-## Release Notes
-
-### 0.0.1 (2025-03-29)
-
-Initial release of MCP Inspector with:
-- List Tool
-- STDIO / SSR Transport Support
-
-### 0.0.2 (2025-03-29)
-
-- Tool Execution Support
+Please report issues on the
+[GitHub issue tracker](https://github.com/Dhananjay-JSR/mcp-inspector/issues).
 
 ## Author
 
 **Dhananjay Senday**
+
 - Website: [https://dhananjaay.dev](https://dhananjaay.dev)
 - Email: [hello@dhananjaay.dev](mailto:hello@dhananjaay.dev)
-
 
 **Enjoy!**
