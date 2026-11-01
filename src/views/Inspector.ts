@@ -1447,15 +1447,26 @@ export class MCPInspectorPanel {
 						corsLikely: result.corsLikely
 					}
 				});
+
+				// The panel may be hidden or the user may be in the browser
+				// finishing sign-in, so surface the failure as a notification too.
+				const notification = result.corsLikely
+					? 'Connection failed: the server did not allow this editor\u2019s origin. Use the relay or allow the origin.'
+					: result.authRequired
+						? `Sign-in failed: ${result.error ?? 'Unknown error'}`
+						: (result.error ?? 'Could not connect to the MCP server');
+				void vscode.window.showErrorMessage(`MCP Inspector: ${notification}`);
 			}
 		} catch (error) {
+			const message = error instanceof Error ? error.message : 'Unknown error occurred';
 			this._panel.webview.postMessage({
 				command: 'connectionStatus',
 				data: {
 					success: false,
-					error: error instanceof Error ? error.message : 'Unknown error occurred'
+					error: message
 				}
 			});
+			void vscode.window.showErrorMessage(`MCP Inspector: ${message}`);
 		}
 	}
 

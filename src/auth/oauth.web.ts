@@ -72,30 +72,41 @@ function encodeCallbackTarget(target: string): string {
 }
 
 /**
- * vscode-test-web serves the URI-callback page at /callback but leaves
- * callbackRoute out of its workbench configuration, so asExternalUri points at
- * the root and percent-encodes the separators in its query
- * (`?vscode-reqid%3D1%26...`). The callback page cannot parse that, so rebuild
- * the URL for local sessions. The production build already returns a usable
- * callback URL and is left untouched.
+ * VS Code's asExternalUri normally returns a usable callback URL, but some
+ * hosts percent-encode the whole query into one parameter
+ * (`?vscode-reqid%3D1%26...`) and the callback page cannot parse it. The local
+ * test host also serves the callback at /callback while pointing at the root.
+ * Rebuild the URL when either happens; leave an already usable URL alone.
  */
-export function withLocalCallbackRoute(external: vscode.Uri): string {
+export function withUsableCallbackRoute(external: vscode.Uri): string {
   const url = new URL(external.toString());
-  if (
-    url.pathname === "/" &&
-    (url.hostname === "localhost" || url.hostname === "127.0.0.1")
-  ) {
-    let query: string;
-    try {
-      query = decodeURIComponent(url.search.slice(1));
-    } catch {
-      return external.toString();
-    }
-    if (query.split("&").some((part) => part.startsWith("vscode-reqid="))) {
-      return `${url.origin}/callback?${query}`;
-    }
+  const raw = url.search.slice(1);
+  if (!raw) {
+    return external.toString();
   }
-  return external.toString();
+
+  let query: string;
+  try {
+    query = decodeURIComponent(raw);
+  } catch {
+    return external.toString();
+  }
+
+  const parts = query.split("&");
+  const hasRequestId = parts.some((part) => part.startsWith("vscode-reqid="));
+  const rawHasRequestId = raw
+    .split("&")
+    .some((part) => part.startsWith("vscode-reqid="));
+  const isLocalRoot =
+    url.pathname === "/" &&
+    (url.hostname === "localhost" || url.hostname === "127.0.0.1");
+
+  if (!hasRequestId || (!isLocalRoot && rawHasRequestId)) {
+    return external.toString();
+  }
+
+  const path = url.pathname === "/" ? "/callback" : url.pathname;
+  return `${url.origin}${path}?${query}`;
 }
 
 /**
@@ -120,7 +131,7 @@ export class WebOAuthCallback implements OAuthCallback {
     const base = vscode.Uri.parse(
       `${vscode.env.uriScheme}://${EXTENSION_ID}${CALLBACK_PATH}`,
     );
-    const target = withLocalCallbackRoute(
+    const target = withUsableCallbackRoute(
       await vscode.env.asExternalUri(base),
     );
 
