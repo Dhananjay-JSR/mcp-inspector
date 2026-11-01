@@ -29,10 +29,8 @@ export class MCPInspectorPanel {
 						const connectionData = message.data;
 						if (connectionData.transport === 'stdio') {
 							await this.handleStdioConnection(connectionData);
-						} else if (connectionData.transport === 'sse') {
-							await this.handleSSEConnection(connectionData);
-						} else if (connectionData.transport === 'streamable-http') {
-							await this.handleStreamableHTTPConnection(connectionData);
+						} else if (connectionData.transport === 'remote') {
+							await this.handleRemoteConnection(connectionData);
 						}
                         break;
                     case 'disconnect':
@@ -500,11 +498,10 @@ export class MCPInspectorPanel {
 						<p class="page-subtitle">Connect to an MCP server, inspect its tools, and call them with your own arguments.</p>
 					</header>
 					<div class="form-group">
-						<label for="transportType">Transport</label>
+						<label for="transportType">Server type</label>
 						<select id="transportType" onchange="handleTransportChange()">
-							<option value="stdio" ${this._isWeb ? 'disabled' : 'selected'}>STDIO${this._isWeb ? ' (not available on the web)' : ''}</option>
-							<option value="sse" ${this._isWeb ? 'selected' : ''}>SSE</option>
-							<option value="streamable-http">Streamable HTTP</option>
+							<option value="stdio" ${this._isWeb ? 'disabled' : 'selected'}>Local (STDIO)</option>
+							<option value="remote" ${this._isWeb ? 'selected' : ''}>Remote (URL)</option>
 						</select>
 					</div>
 
@@ -525,30 +522,17 @@ export class MCPInspectorPanel {
 						</div>
 					</div>
 
-					<!-- SSE Section -->
-					<div id="sseSection" class="transport-section ${this._isWeb ? 'active' : ''}">
+					<!-- Remote Section -->
+					<div id="remoteSection" class="transport-section ${this._isWeb ? 'active' : ''}">
 						<div class="form-group">
 							<label for="serverUrl">Server URL</label>
-							<input type="text" id="serverUrl" placeholder="https://example.com/sse">
+							<input type="text" id="serverUrl" placeholder="https://example.com/mcp">
+							<p class="hint">The transport is detected automatically: Streamable HTTP first, SSE for <code>/sse</code> endpoints.</p>
 						</div>
 						<div class="form-group">
 							<label>Headers</label>
 							<div id="headersList"></div>
-							<button type="button" class="add-header-btn" onclick="addHeader('sse')">+ Add header</button>
-							<p class="hint">Sent with every request, for example <code>Authorization: Bearer &lt;token&gt;</code>.</p>
-						</div>
-					</div>
-
-					<!-- Streamable HTTP Section -->
-					<div id="streamableHttpSection" class="transport-section">
-						<div class="form-group">
-							<label for="streamableHttpUrl">Server URL</label>
-							<input type="text" id="streamableHttpUrl" placeholder="https://example.com/mcp">
-						</div>
-						<div class="form-group">
-							<label>Headers</label>
-							<div id="streamableHttpHeadersList"></div>
-							<button type="button" class="add-header-btn" onclick="addHeader('streamable-http')">+ Add header</button>
+							<button type="button" class="add-header-btn" onclick="addHeader()">+ Add header</button>
 							<p class="hint">Sent with every request, for example <code>Authorization: Bearer &lt;token&gt;</code>.</p>
 						</div>
 					</div>
@@ -606,7 +590,6 @@ export class MCPInspectorPanel {
 					const relayBase = "${RELAY_BASE_URL}";
 					let isConnected = false;
 					let relayAttempted = false;
-					let lastTransport = 'sse';
 					let _initialized = false;
 
 					function setStatus(kind, text, details) {
@@ -639,8 +622,7 @@ export class MCPInspectorPanel {
 					function handleTransportChange() {
 						const transportType = document.getElementById('transportType').value;
 						document.getElementById('stdioSection').classList.toggle('active', transportType === 'stdio');
-						document.getElementById('sseSection').classList.toggle('active', transportType === 'sse');
-						document.getElementById('streamableHttpSection').classList.toggle('active', transportType === 'streamable-http');
+						document.getElementById('remoteSection').classList.toggle('active', transportType === 'remote');
 						saveState();
 					}
 
@@ -652,8 +634,7 @@ export class MCPInspectorPanel {
 							transportType: document.getElementById('transportType').value,
 							command: document.getElementById('command').value,
 							scriptArgs: document.getElementById('scriptArgs').value,
-							serverUrl: document.getElementById('serverUrl').value,
-							streamableHttpUrl: document.getElementById('streamableHttpUrl').value
+							serverUrl: document.getElementById('serverUrl').value
 						});
 					}
 
@@ -663,12 +644,15 @@ export class MCPInspectorPanel {
 							return;
 						}
 
-						if (state.transportType && !(isWeb && state.transportType === 'stdio')) {
-							document.getElementById('transportType').value = state.transportType;
-							const transportType = state.transportType;
+						// Older versions stored "sse" or "streamable-http" as the transport.
+						let transportType = state.transportType;
+						if (transportType === 'sse' || transportType === 'streamable-http') {
+							transportType = 'remote';
+						}
+						if (transportType && !(isWeb && transportType === 'stdio')) {
+							document.getElementById('transportType').value = transportType;
 							document.getElementById('stdioSection').classList.toggle('active', transportType === 'stdio');
-							document.getElementById('sseSection').classList.toggle('active', transportType === 'sse');
-							document.getElementById('streamableHttpSection').classList.toggle('active', transportType === 'streamable-http');
+							document.getElementById('remoteSection').classList.toggle('active', transportType === 'remote');
 						}
 						if (state.command) {
 							document.getElementById('command').value = state.command;
@@ -676,11 +660,9 @@ export class MCPInspectorPanel {
 						if (state.scriptArgs) {
 							document.getElementById('scriptArgs').value = state.scriptArgs;
 						}
-						if (state.serverUrl) {
-							document.getElementById('serverUrl').value = state.serverUrl;
-						}
-						if (state.streamableHttpUrl) {
-							document.getElementById('streamableHttpUrl').value = state.streamableHttpUrl;
+						const savedUrl = state.serverUrl || state.streamableHttpUrl;
+						if (savedUrl) {
+							document.getElementById('serverUrl').value = savedUrl;
 						}
 					}
 
@@ -692,9 +674,8 @@ export class MCPInspectorPanel {
 						vscode.postMessage({ command: 'openRelayRepo' });
 					}
 
-					function addHeader(section = 'sse', key = '', value = '') {
-						const listId = section === 'streamable-http' ? 'streamableHttpHeadersList' : 'headersList';
-						const list = document.getElementById(listId);
+					function addHeader(key = '', value = '') {
+						const list = document.getElementById('headersList');
 						const row = document.createElement('div');
 						row.className = 'header-row';
 
@@ -719,9 +700,8 @@ export class MCPInspectorPanel {
 						list.appendChild(row);
 					}
 
-					function getHeaders(section = 'sse') {
-						const listId = section === 'streamable-http' ? 'streamableHttpHeadersList' : 'headersList';
-						const rows = document.getElementById(listId).querySelectorAll('.header-row');
+					function getHeaders() {
+						const rows = document.getElementById('headersList').querySelectorAll('.header-row');
 						const headers = {};
 						rows.forEach(row => {
 							const inputs = row.querySelectorAll('input');
@@ -740,15 +720,12 @@ export class MCPInspectorPanel {
 						}
 					}
 
-					function getServerUrlFor(transportType) {
-						return transportType === 'streamable-http'
-							? document.getElementById('streamableHttpUrl').value.trim()
-							: document.getElementById('serverUrl').value.trim();
+					function getServerUrl() {
+						return document.getElementById('serverUrl').value.trim();
 					}
 
 					function connectViaRelay() {
-						const transportType = lastTransport === 'streamable-http' ? 'streamable-http' : 'sse';
-						const upstream = getServerUrlFor(transportType);
+						const upstream = getServerUrl();
 						if (!upstream) {
 							return;
 						}
@@ -756,13 +733,13 @@ export class MCPInspectorPanel {
 						hideRelayPrompt();
 						setBusy(true);
 						setStatus('', 'Connecting through the relay…');
-						const relayPath = transportType === 'streamable-http' ? '/mcp?url=' : '/sse?url=';
 						vscode.postMessage({
 							command: 'connect',
 							data: {
-								transport: transportType,
-								serverUrl: relayBase + relayPath + encodeURIComponent(upstream),
-								headers: getHeaders(transportType)
+								transport: 'remote',
+								serverUrl: upstream,
+								headers: getHeaders(),
+								relayBase
 							}
 						});
 					}
@@ -776,7 +753,6 @@ export class MCPInspectorPanel {
 						const transportType = document.getElementById('transportType').value;
 						let connectionData = {};
 
-						lastTransport = transportType;
 						relayAttempted = false;
 						hideRelayPrompt();
 
@@ -797,27 +773,16 @@ export class MCPInspectorPanel {
 								command: command,
 								args: args
 							};
-						} else if (transportType === 'sse') {
-							const serverUrl = getServerUrlFor('sse');
-							if (!serverUrl) {
-								setStatus('error', 'Enter the SSE server URL.');
-								return;
-							}
-							connectionData = {
-								transport: 'sse',
-								serverUrl,
-								headers: getHeaders('sse')
-							};
 						} else {
-							const serverUrl = getServerUrlFor('streamable-http');
+							const serverUrl = getServerUrl();
 							if (!serverUrl) {
-								setStatus('error', 'Enter the Streamable HTTP server URL.');
+								setStatus('error', 'Enter the server URL.');
 								return;
 							}
 							connectionData = {
-								transport: 'streamable-http',
+								transport: 'remote',
 								serverUrl,
-								headers: getHeaders('streamable-http')
+								headers: getHeaders()
 							};
 						}
 
@@ -838,7 +803,7 @@ export class MCPInspectorPanel {
 						});
 					}
 
-					function updateConnectionUI(connected, toolCount) {
+					function updateConnectionUI(connected, transportName, toolCount) {
 						const toolsContainer = document.getElementById('toolsContainer');
 
 						isConnected = connected;
@@ -847,16 +812,23 @@ export class MCPInspectorPanel {
 						document.getElementById('connectButton').disabled = false;
 
 						if (connected) {
-							const count = toolCount === undefined ? null : toolCount;
-							setStatus(
-								'success',
-								count === null ? 'Connected' : 'Connected · ' + count + (count === 1 ? ' tool' : ' tools')
-							);
+							const parts = ['Connected'];
+							if (transportName) {
+								parts.push(transportName);
+							}
+							if (toolCount !== undefined) {
+								parts.push(toolCount + (toolCount === 1 ? ' tool' : ' tools'));
+							}
+							setStatus('success', parts.join(' · '));
 							toolsContainer.classList.add('visible');
 						} else {
 							setStatus('', 'Not connected');
 							toolsContainer.classList.remove('visible');
 						}
+					}
+
+					function transportName(transport) {
+						return transport === 'sse' ? 'SSE' : 'Streamable HTTP';
 					}
 
 					function displayTools(tools) {
@@ -901,13 +873,17 @@ export class MCPInspectorPanel {
 									hideRelayPrompt();
 								} else if (message.data.success) {
 									const tools = message.data.tools || [];
-									updateConnectionUI(true, tools.length);
+									updateConnectionUI(
+										true,
+										message.data.transport ? transportName(message.data.transport) : '',
+										tools.length
+									);
 									hideRelayPrompt();
 									displayTools(tools);
 								} else {
 									updateConnectionUI(false);
 									const error = message.data.error || 'Unknown error';
-									const serverUrl = getServerUrlFor(lastTransport);
+									const serverUrl = getServerUrl();
 									const alreadyRelay = serverUrl.startsWith(relayBase);
 									const offerRelay = isWeb && message.data.corsLikely && !relayAttempted && !alreadyRelay;
 									const details = message.data.details && message.data.details !== error
@@ -1023,7 +999,7 @@ export class MCPInspectorPanel {
 
 					restoreState();
 					_initialized = true;
-					['command', 'scriptArgs', 'serverUrl', 'streamableHttpUrl'].forEach(id => {
+					['command', 'scriptArgs', 'serverUrl'].forEach(id => {
 						document.getElementById(id).addEventListener('input', saveState);
 					});
 				</script>
@@ -1088,57 +1064,8 @@ export class MCPInspectorPanel {
 		}
 	}
 
-	private async handleSSEConnection(connectionData: any) {
+	private async handleRemoteConnection(connectionData: any) {
 		try {
-			// Create a new MCP client for this session
-			this._mcpClient = new MCPClient();
-
-			// Get the server URL and optional headers
-			const serverUrl = connectionData.serverUrl;
-			const headers: Record<string, string> | undefined =
-				connectionData.headers && Object.keys(connectionData.headers).length > 0
-					? connectionData.headers
-					: undefined;
-
-			// Connect to the server using SSE
-			const result = await this._mcpClient.connectToSSE(serverUrl, headers);
-			
-			if (result.success) {
-				// Send success message back to webview
-				this._panel.webview.postMessage({
-					command: 'connectionStatus',
-					data: {
-						success: true,
-						tools: result.tools
-					}
-				});
-			} else {
-				// Send error message back to webview
-				this._panel.webview.postMessage({
-					command: 'connectionStatus',
-					data: {
-						success: false,
-						error: result.error,
-						details: result.details,
-						corsLikely: result.corsLikely
-					}
-				});
-			}
-		} catch (error) {
-			this._panel.webview.postMessage({
-				command: 'connectionStatus',
-				data: {
-					success: false,
-					error: error instanceof Error ? error.message : 'Unknown error occurred'
-				}
-			});
-		}
-	}
-
-
-	private async handleStreamableHTTPConnection(connectionData: any) {
-		try {
-			// Create a new MCP client for this session
 			this._mcpClient = new MCPClient();
 
 			const serverUrl = connectionData.serverUrl;
@@ -1146,15 +1073,17 @@ export class MCPInspectorPanel {
 				connectionData.headers && Object.keys(connectionData.headers).length > 0
 					? connectionData.headers
 					: undefined;
+			const relayBase: string | undefined = connectionData.relayBase;
 
-			const result = await this._mcpClient.connectToStreamableHTTP(serverUrl, headers);
+			const result = await this._mcpClient.connectToRemote(serverUrl, headers, relayBase);
 
 			if (result.success) {
 				this._panel.webview.postMessage({
 					command: 'connectionStatus',
 					data: {
 						success: true,
-						tools: result.tools
+						tools: result.tools,
+						transport: result.transport
 					}
 				});
 			} else {
@@ -1178,7 +1107,6 @@ export class MCPInspectorPanel {
 			});
 		}
 	}
-
 
 	private async handlePickCommand() {
 		const selection = await vscode.window.showOpenDialog({

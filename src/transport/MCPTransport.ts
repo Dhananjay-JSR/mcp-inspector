@@ -4,6 +4,7 @@ import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import * as vscode from "vscode";
 import { describeFailure } from "./errorHints";
+import { connectWithFallback } from "./remote";
 import type {
   ConnectionResult,
   HeadersMap,
@@ -82,6 +83,7 @@ export class MCPClient implements IMCPClient {
         throw new Error("Server URL must start with http:// or https://");
       }
 
+      this.mcp = new Client({ name: "mcp-debugger-vscode-extension", version: "1.0.0" });
       this.transport = new SSEClientTransport(
         new URL(serverUrl),
         requestOptions(headers),
@@ -104,7 +106,6 @@ export class MCPClient implements IMCPClient {
     } catch (e) {
       const raw = e instanceof Error ? e.message : "Unknown error occurred";
       const failure = describeFailure(raw, endpointOf(serverUrl));
-      vscode.window.showErrorMessage(`Failed to connect to MCP server via SSE: ${failure.message}`);
       return { success: false, error: failure.message, details: failure.details };
     }
   }
@@ -118,6 +119,7 @@ export class MCPClient implements IMCPClient {
         throw new Error("Server URL must start with http:// or https://");
       }
 
+      this.mcp = new Client({ name: "mcp-debugger-vscode-extension", version: "1.0.0" });
       this.transport = new StreamableHTTPClientTransport(
         new URL(serverUrl),
         requestOptions(headers),
@@ -139,11 +141,25 @@ export class MCPClient implements IMCPClient {
     } catch (error) {
       const raw = error instanceof Error ? error.message : "Unknown error occurred";
       const failure = describeFailure(raw, endpointOf(serverUrl));
-      vscode.window.showErrorMessage(
-        `Failed to connect to MCP server via Streamable HTTP: ${failure.message}`,
-      );
       return { success: false, error: failure.message, details: failure.details };
     }
+  }
+
+  async connectToRemote(
+    serverUrl: string,
+    headers?: HeadersMap,
+    relayBase?: string,
+  ): Promise<ConnectionResult> {
+    const result = await connectWithFallback(serverUrl, { relayBase }, (transport, target) =>
+      transport === "sse"
+        ? this.connectToSSE(target, headers)
+        : this.connectToStreamableHTTP(target, headers),
+    );
+
+    if (!result.success) {
+      vscode.window.showErrorMessage(`Failed to connect to MCP server: ${result.error}`);
+    }
+    return result;
   }
 
   async executeTool(
