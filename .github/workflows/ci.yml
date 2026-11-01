@@ -172,9 +172,9 @@ jobs:
       - name: Verify package contents
         run: |
           yarn --silent vsce ls > vsix-files.txt
-          if grep -Eq '^(src|\.github|\.vscode)/|^(patch-sdk\.js|\.commitlintrc\.json|CONTRIBUTING\.md|\.nvmrc)$' vsix-files.txt; then
+          if grep -Eq '^(src|\.github|\.vscode)/|^(node_modules|out/test)/|^(patch-sdk\.js|\.commitlintrc\.json|CONTRIBUTING\.md|\.nvmrc)$' vsix-files.txt; then
             echo "Unexpected files in the VSIX:"
-            grep -E '^(src|\.github|\.vscode)/|^(patch-sdk\.js|\.commitlintrc\.json|CONTRIBUTING\.md|\.nvmrc)$' vsix-files.txt
+            grep -E '^(src|\.github|\.vscode)/|^(node_modules|out/test)/|^(patch-sdk\.js|\.commitlintrc\.json|CONTRIBUTING\.md|\.nvmrc)$' vsix-files.txt
             exit 1
           fi
           echo "VSIX contents look clean"
