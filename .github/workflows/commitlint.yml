@@ -34,6 +34,7 @@ jobs:
           cache: yarn
 
       - name: Verify toolchain
+        shell: bash
         run: |
           test "v$(cat .nvmrc)" = "$(node --version)"
           test "$(yarn --version | cut -d. -f1,2)" = "1.22"
