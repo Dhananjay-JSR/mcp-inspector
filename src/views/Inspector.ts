@@ -458,6 +458,29 @@ export class MCPInspectorPanel {
 						overflow: auto;
 						display: none;
 					}
+					.response-header {
+						font-size: 12px;
+						font-weight: 600;
+						margin-bottom: 8px;
+						text-transform: uppercase;
+						letter-spacing: 0.04em;
+					}
+					.response-header.success {
+						color: var(--vscode-testing-iconPassed);
+					}
+					.response-header.error {
+						color: var(--vscode-testing-iconFailed);
+					}
+					#executeButton.success {
+						background-color: var(--vscode-testing-iconPassed);
+						border-color: var(--vscode-testing-iconPassed);
+						color: var(--vscode-button-foreground);
+					}
+					#executeButton.error {
+						background-color: var(--vscode-testing-iconFailed);
+						border-color: var(--vscode-testing-iconFailed);
+						color: var(--vscode-button-foreground);
+					}
 					pre {
 						margin: 0;
 						white-space: pre-wrap;
@@ -588,10 +611,11 @@ export class MCPInspectorPanel {
 								<div id="toolFields"></div>
 								<div class="modal-buttons">
 									<button type="button" onclick="closeModal()">Cancel</button>
-									<button type="submit">Execute</button>
+									<button type="submit" id="executeButton">Execute</button>
 								</div>
 							</form>
 							<div id="responseViewer" class="response-viewer">
+								<div id="responseHeader" class="response-header"></div>
 								<pre id="responseContent"></pre>
 							</div>
 						</div>
@@ -604,6 +628,7 @@ export class MCPInspectorPanel {
 					const relayBase = "${RELAY_BASE_URL}";
 					let isConnected = false;
 					let relayAttempted = false;
+					let executeStartedAt = 0;
 					let _initialized = false;
 
 					function setStatus(kind, text, details) {
@@ -955,6 +980,13 @@ export class MCPInspectorPanel {
 						toolFields.innerHTML = '';
 						responseViewer.style.display = 'none';
 						responseContent.textContent = '';
+						const executeButton = document.getElementById('executeButton');
+						executeButton.disabled = false;
+						executeButton.textContent = 'Execute';
+						executeButton.classList.remove('success', 'error');
+						const responseHeader = document.getElementById('responseHeader');
+						responseHeader.className = 'response-header';
+						responseHeader.textContent = '';
 
 						// Parse the schema
 						const schema = JSON.parse(decodeURIComponent(schemaString));
@@ -997,6 +1029,19 @@ export class MCPInspectorPanel {
 								if (value) args[key] = value;
 							});
 
+							// The call can take a while, and the result renders below
+							// the buttons, so show progress and keep it in view.
+							executeStartedAt = performance.now();
+							executeButton.disabled = true;
+							executeButton.textContent = 'Executing…';
+							executeButton.classList.remove('success', 'error');
+							responseViewer.style.display = 'block';
+							const responseHeader = document.getElementById('responseHeader');
+							responseHeader.className = 'response-header';
+							responseHeader.textContent = 'Running';
+							responseContent.textContent = 'Waiting for the server…';
+							responseViewer.scrollIntoView({ block: 'nearest' });
+
 							vscode.postMessage({
 								command: 'executeTool',
 								data: {
@@ -1022,16 +1067,57 @@ export class MCPInspectorPanel {
 						}
 					}
 
+					// Tool results are usually a text content array; show that
+					// instead of raw JSON, and fall back to the JSON otherwise.
+					function formatToolResult(data) {
+						if (!data) {
+							return '';
+						}
+						if (data.success === false) {
+							return data.error || 'Unknown error';
+						}
+						const content = data.result && data.result.content;
+						if (Array.isArray(content)) {
+							const text = content
+								.filter(part => part && part.type === 'text')
+								.map(part => part.text)
+								.join('\n');
+							if (text) {
+								return text;
+							}
+						}
+						return JSON.stringify(data.result ?? data, null, 2);
+					}
+
 					// Handle tool execution response
 					window.addEventListener('message', event => {
 						const message = event.data;
 						switch (message.command) {
-							case 'toolExecutionResponse':
+							case 'toolExecutionResponse': {
 								const responseViewer = document.getElementById('responseViewer');
 								const responseContent = document.getElementById('responseContent');
+								const responseHeader = document.getElementById('responseHeader');
+								const executeButton = document.getElementById('executeButton');
+								const data = message.data || {};
+								const failed = data.success === false
+									|| (data.result && data.result.isError === true);
+								const elapsed = executeStartedAt
+									? ((performance.now() - executeStartedAt) / 1000).toFixed(1) + 's'
+									: '';
+
+								executeButton.disabled = false;
+								executeButton.textContent = failed ? 'Failed' : 'Executed';
+								executeButton.classList.toggle('success', !failed);
+								executeButton.classList.toggle('error', failed);
+
+								responseHeader.className = 'response-header ' + (failed ? 'error' : 'success');
+								responseHeader.textContent = (failed ? 'Failed' : 'Success')
+									+ (elapsed ? ' · ' + elapsed : '');
 								responseViewer.style.display = 'block';
-								responseContent.textContent = JSON.stringify(message.data, null, 2);
+								responseContent.textContent = formatToolResult(data);
+								responseViewer.scrollIntoView({ block: 'nearest' });
 								break;
+							}
 						}
 					});
 
