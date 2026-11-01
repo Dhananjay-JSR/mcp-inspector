@@ -14,6 +14,7 @@ export interface ConnectionResult {
   success: boolean;
   tools?: Tool[];
   error?: string;
+  corsLikely?: boolean;
 }
 
 export interface ToolResult {
