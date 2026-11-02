@@ -26,7 +26,7 @@ separate inspector process required.
 - Add custom headers per server, including `Authorization: Bearer …` tokens
 - Pick a server script with the native file dialog, or type a command such as `npx`
 - Browse every tool a server exposes, including its input schema
-- Execute tools with schema-generated fields, live progress, elapsed time, pretty-printed JSON results, and one-click copy
+- Execute tools with typed schema fields (text, number, boolean, enum, JSON), a raw-JSON mode, live progress, elapsed time, pretty-printed JSON results, and one-click copy
 - Launch from the activity-bar view or the Command Palette, and inspect in a full panel
 - Run in the desktop app and in VS Code for the Web, with a relay fallback when a server blocks the browser origin
 
@@ -152,8 +152,8 @@ commit conventions, and the pull request process.
 - STDIO servers require the desktop app or Codespaces.
 - OAuth-protected servers in VS Code for the Web must allow the editor origin,
   or be used through the relay.
-- Tool forms render every schema property as a text field. Nested objects and
-  arrays must be entered as JSON text.
+- Tool forms map top-level properties. Nested objects and arrays are edited as
+  JSON, and `oneOf`/`anyOf` schemas fall back to a text field.
 - One server connection at a time; multi-server workspaces are not supported yet.
 - Tools are listed and called; prompts and resources are not exposed yet.
 
