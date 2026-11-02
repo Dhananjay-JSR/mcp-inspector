@@ -144,6 +144,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [build, test]
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       - name: Checkout repository
@@ -186,3 +189,15 @@ jobs:
           path: '*.vsix'
           if-no-files-found: error
           retention-days: 14
+
+      - name: Comment preview instructions
+        if: >
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_ID: ${{ github.run_id }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: bash .github/scripts/pr-preview-comment.sh

@@ -111,13 +111,26 @@ npx commitlint --from origin/main --to HEAD --verbose
   after CI succeeds on `main`.
 - Maintainers squash merge approved pull requests.
 
+## Testing a pull request
+
+Every same-repository PR gets a VSIX artifact and a Codespaces-ready web
+workspace. CI comments on the PR with the current run ID, desktop install
+commands, and a Codespaces link. See [docs/testing-prs.md](docs/testing-prs.md)
+for the full instructions and the local web harnesses.
+
+Use the desktop build for STDIO and custom TLS; use the Codespaces web workspace
+for browser CORS and the OAuth callback. Fork PRs skip the comment because their
+token is read-only. `vscode.dev` cannot sideload a hosted PR build because its
+CSP only allows Marketplace/CDN origins and localhost.
+
 ## Continuous integration
 
 Every push and pull request to `main` runs:
 
 - **Build & lint** on Ubuntu, macOS, and Windows
 - **Extension tests** on Linux using a virtual display (`xvfb`)
-- **VSIX packaging**, uploaded as a build artifact
+- **VSIX packaging**, uploaded as a build artifact, plus a PR comment with test instructions
+- **Web preview**, run through Codespaces or the local Chromium harness
 - **Conventional Commits** checks for the PR title and commit messages
 - **CodeQL** security analysis
 

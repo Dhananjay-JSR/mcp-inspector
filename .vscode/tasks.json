@@ -15,6 +15,16 @@
 				"kind": "build",
 				"isDefault": true
 			}
+		},
+		{
+			"type": "npm",
+			"script": "watch-web",
+			"problemMatcher": [],
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never"
+			},
+			"label": "npm: watch-web"
 		}
 	]
 }
