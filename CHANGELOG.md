@@ -1,3 +1,9 @@
+## [0.8.0](https://github.com/[secure]/mcp-[secure]/compare/v0.7.2...v0.8.0) (2026-11-02)
+
+### Features
+
+* render typed schema forms for tool arguments ([6c5be2a](https://github.com/[secure]/mcp-[secure]/commit/6c5be2a5955bb00c1cd7610d19905d2a4c51c040))
+
 ## [0.7.2](https://github.com/[secure]/mcp-[secure]/compare/v0.7.1...v0.7.2) (2026-11-01)
 
 ### Bug Fixes
