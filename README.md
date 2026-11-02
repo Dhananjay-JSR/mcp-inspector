@@ -27,6 +27,7 @@ separate inspector process required.
 - Pick a server script with the native file dialog, or type a command such as `npx`
 - Browse every tool a server exposes, including its input schema
 - Execute tools with typed schema fields (text, number, boolean, enum, JSON), a raw-JSON mode, live progress, elapsed time, pretty-printed JSON results, and one-click copy
+- Diagnose failures with classified error cards — endpoint/command, DNS, TLS, CORS, auth, network, protocol, or tool — with **Retry**, **Open settings**, **Copy curl**, and **Use relay** where they apply
 - Launch from the activity-bar view or the Command Palette, and inspect in a full panel
 - Run in the desktop app and in VS Code for the Web, with a relay fallback when a server blocks the browser origin
 

@@ -56,6 +56,9 @@ export class MCPInspectorPanel {
                     case 'copyToClipboard':
                         await vscode.env.clipboard.writeText(message.data?.text ?? '');
                         break;
+                    case 'openSettings':
+                        await this.handleOpenSettings(message.data?.kind);
+                        break;
                     case 'openRelayRepo':
                         await vscode.env.openExternal(vscode.Uri.parse(RELAY_REPO_URL));
                         break;
@@ -119,20 +122,6 @@ export class MCPInspectorPanel {
 	}
 
 	private _getRenderer(webview: vscode.Webview) {
-		const relayPrompt = this._isWeb
-			? `
-					<div id="relayPrompt" class="callout" style="display: none;" role="alert">
-						<div class="callout-title">Use the relay to connect</div>
-						<p class="callout-body">This server does not allow requests from the editor, so the browser blocked the connection. The relay forwards the request for you.</p>
-						<p class="callout-privacy">The relay does not log requests, headers, or tokens.</p>
-						<p class="callout-meta"><code>${RELAY_BASE_URL.replace('https://', '')}</code> · <a href="#" onclick="openRelayRepo(); return false;">source on GitHub</a></p>
-						<div class="callout-actions">
-							<button onclick="connectViaRelay()">Use relay</button>
-							<button class="secondary" onclick="hideRelayPrompt()">Dismiss</button>
-						</div>
-					</div>`
-			: '';
-
 		const tlsSection = this._isWeb
 			? ''
 			: `
@@ -573,6 +562,57 @@ export class MCPInspectorPanel {
 						margin: 6px 0 0;
 						padding-left: 18px;
 					}
+					.error-card {
+						margin: 12px 0 16px;
+						padding: 12px 14px;
+						border: 1px solid var(--vscode-inputValidation-errorBorder, #f14c4c);
+						border-left: 3px solid var(--vscode-inputValidation-errorBorder, #f14c4c);
+						background: var(--vscode-inputValidation-errorBackground, rgba(255, 68, 68, 0.08));
+						color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+						border-radius: 4px;
+					}
+					.error-card-header {
+						display: flex;
+						align-items: baseline;
+						justify-content: space-between;
+						gap: 12px;
+					}
+					.error-card-title {
+						font-size: 12px;
+						font-weight: 600;
+						text-transform: uppercase;
+						letter-spacing: 0.04em;
+					}
+					.error-card-details summary {
+						cursor: pointer;
+						font-size: 11px;
+						color: var(--vscode-descriptionForeground);
+					}
+					.error-card-details pre {
+						margin: 6px 0 0;
+						max-height: 140px;
+						overflow: auto;
+						font-family: var(--vscode-editor-font-family, monospace);
+						font-size: 11px;
+						white-space: pre-wrap;
+					}
+					.error-card-message {
+						margin: 6px 0 10px;
+						font-size: 13px;
+						line-height: 1.5;
+					}
+					.error-card-actions {
+						display: flex;
+						flex-wrap: wrap;
+						align-items: center;
+						gap: 8px;
+					}
+					.error-card-actions button {
+						margin: 0;
+					}
+					#toolErrorCard {
+						margin-top: 16px;
+					}
 					.field-hint {
 						display: block;
 						margin-top: 4px;
@@ -771,7 +811,28 @@ export class MCPInspectorPanel {
 							</details>
 						</div>
 					</div>
-					${relayPrompt}
+
+					<div id="errorCard" class="error-card" role="alert" hidden>
+						<div class="error-card-header">
+							<span id="errorCardTitle" class="error-card-title"></span>
+							<details class="error-card-details">
+								<summary>Details</summary>
+								<pre id="errorCardDetails"></pre>
+							</details>
+						</div>
+						<p id="errorCardMessage" class="error-card-message"></p>
+						<p id="relayNote" class="callout-privacy" hidden>
+							The relay (<code>${RELAY_BASE_URL.replace('https://', '')}</code>) forwards the request for you and does not log requests, headers, or tokens.
+							<a href="#" onclick="openRelayRepo(); return false;">Source on GitHub</a>
+						</p>
+						<div class="error-card-actions">
+							<button id="retryErrorButton" type="button" onclick="retryConnection()">Retry</button>
+							<button id="settingsErrorButton" type="button" class="secondary" onclick="openErrorSettings()" hidden>Open settings</button>
+							<button id="curlErrorButton" type="button" class="secondary" onclick="copyErrorCurl()" hidden>Copy curl</button>
+							<button id="relayErrorButton" type="button" class="secondary" onclick="connectViaRelay()" hidden>Use relay</button>
+							<button id="dismissErrorButton" type="button" class="secondary" onclick="hideErrorCard()">Dismiss</button>
+						</div>
+					</div>
 
 					<div id="toolsContainer" class="tools-container">
 						<div class="tools-header">
@@ -807,6 +868,22 @@ export class MCPInspectorPanel {
 									<button type="submit" id="executeButton">Execute</button>
 								</div>
 							</form>
+
+							<div id="toolErrorCard" class="error-card" role="alert" hidden>
+								<div class="error-card-header">
+									<span id="toolErrorTitle" class="error-card-title"></span>
+									<details class="error-card-details">
+										<summary>Details</summary>
+										<pre id="toolErrorDetails"></pre>
+									</details>
+								</div>
+								<p id="toolErrorMessage" class="error-card-message"></p>
+								<div class="error-card-actions">
+									<button id="retryToolButton" type="button" onclick="retryTool()">Retry</button>
+									<button type="button" class="secondary" onclick="hideToolError()">Dismiss</button>
+								</div>
+							</div>
+
 							<div id="responseViewer" class="response-viewer">
 								<div class="response-toolbar">
 									<div id="responseHeader" class="response-header"></div>
@@ -825,6 +902,8 @@ export class MCPInspectorPanel {
 					let isConnected = false;
 					let relayAttempted = false;
 					let executeStartedAt = 0;
+					let lastError = null;
+					let lastToolPayload = null;
 					let _initialized = false;
 
 					function setStatus(kind, text, details) {
@@ -1001,11 +1080,77 @@ export class MCPInspectorPanel {
 						vscode.postMessage({ command: 'saveTlsConfig', data: getTlsConfig() });
 					}
 
-					function hideRelayPrompt() {
-						const prompt = document.getElementById('relayPrompt');
-						if (prompt) {
-							prompt.style.display = 'none';
+					function errorTitle(kind) {
+						return {
+							config: 'Configuration',
+							dns: 'Host not found',
+							tls: 'TLS certificate',
+							cors: 'Blocked by the browser',
+							auth: 'Authentication',
+							transport: 'Network',
+							protocol: 'Protocol',
+							tool: 'Tool call'
+						}[kind] || 'Connection failed';
+					}
+
+					function hideErrorCard() {
+						const card = document.getElementById('errorCard');
+						if (card) {
+							card.hidden = true;
 						}
+						lastError = null;
+					}
+
+					function showErrorCard(data, offerRelay) {
+						const card = document.getElementById('errorCard');
+						const message = data.error || 'Unknown error';
+						const details = data.details || message;
+						const kind = data.kind || (data.authRequired ? 'auth' : 'transport');
+						lastError = {
+							kind: kind,
+							curl: data.curl || ''
+						};
+
+						document.getElementById('errorCardTitle').textContent = errorTitle(kind);
+						document.getElementById('errorCardMessage').textContent = message;
+						document.getElementById('errorCardDetails').textContent = details;
+						document.getElementById('settingsErrorButton').hidden = isWeb || kind !== 'tls';
+						document.getElementById('curlErrorButton').hidden = !data.curl;
+						document.getElementById('relayErrorButton').hidden = !offerRelay;
+						document.getElementById('relayNote').hidden = !offerRelay;
+						card.hidden = false;
+						card.scrollIntoView({ block: 'nearest' });
+					}
+
+					function retryConnection() {
+						hideErrorCard();
+						connect();
+					}
+
+					function openErrorSettings() {
+						if (!lastError) {
+							return;
+						}
+						vscode.postMessage({
+							command: 'openSettings',
+							data: { kind: lastError.kind }
+						});
+					}
+
+					function copyErrorCurl() {
+						if (!lastError || !lastError.curl) {
+							return;
+						}
+						vscode.postMessage({
+							command: 'copyToClipboard',
+							data: { text: lastError.curl }
+						});
+						const button = document.getElementById('curlErrorButton');
+						const label = button.textContent;
+						button.textContent = 'Copied';
+						setTimeout(() => {
+							button.textContent = label;
+						}, 1200);
 					}
 
 					function getServerUrl() {
@@ -1018,7 +1163,7 @@ export class MCPInspectorPanel {
 							return;
 						}
 						relayAttempted = true;
-						hideRelayPrompt();
+						hideErrorCard();
 						setBusy(true);
 						setStatus('', 'Connecting through the relay…');
 						vscode.postMessage({
@@ -1044,7 +1189,7 @@ export class MCPInspectorPanel {
 						let connectionData = {};
 
 						relayAttempted = false;
-						hideRelayPrompt();
+						hideErrorCard();
 
 						if (isWeb && transportType === 'stdio') {
 							setStatus('error', 'STDIO is not available in VS Code for the Web.');
@@ -1163,7 +1308,7 @@ export class MCPInspectorPanel {
 								}
 								if (message.data.disconnected) {
 									updateConnectionUI(false);
-									hideRelayPrompt();
+									hideErrorCard();
 								} else if (message.data.success) {
 									const tools = message.data.tools || [];
 									updateConnectionUI(
@@ -1171,28 +1316,34 @@ export class MCPInspectorPanel {
 										message.data.transport ? transportName(message.data.transport) : '',
 										tools.length
 									);
-									hideRelayPrompt();
+									hideErrorCard();
 									displayTools(tools);
 								} else {
 									updateConnectionUI(false);
 									const error = message.data.error || 'Unknown error';
 									const serverUrl = getServerUrl();
 									const alreadyRelay = serverUrl.startsWith(relayBase);
-									const offerRelay = isWeb && message.data.corsLikely && !message.data.authRequired && !relayAttempted && !alreadyRelay;
-									const details = message.data.details && message.data.details !== error
-										? message.data.details
-										: undefined;
+									const kind = message.data.authRequired
+										? 'auth'
+										: (message.data.kind || 'transport');
+									const offerRelay = isWeb
+										&& (message.data.corsLikely || message.data.kind === 'cors')
+										&& !message.data.authRequired
+										&& !relayAttempted
+										&& !alreadyRelay;
 									const authMessage = message.data.authRequired
 										? (document.getElementById('authMode').value === 'static'
 											? 'This server requires authentication. Add an Authorization header, or switch Authentication to Automatic.'
 											: 'Sign-in did not complete. Try connecting again, or check that the server allows this browser origin for its OAuth endpoints.')
 										: null;
 
-									// The callout explains the failure when it is shown, so do not repeat it here.
-									setStatus('error', offerRelay ? 'Connection failed.' : (authMessage || error), details);
-									if (offerRelay) {
-										document.getElementById('relayPrompt').style.display = 'block';
-									}
+									setStatus('error', 'Connection failed.');
+									showErrorCard({
+										error: authMessage || error,
+										details: message.data.details || error,
+										kind: kind,
+										curl: message.data.curl
+									}, offerRelay);
 								}
 								break;
 							case 'commandPicked': {
@@ -1366,6 +1517,55 @@ export class MCPInspectorPanel {
 						clearToolErrors();
 					}
 
+					function hideToolError() {
+						const card = document.getElementById('toolErrorCard');
+						if (card) {
+							card.hidden = true;
+						}
+					}
+
+					function showToolError(data) {
+						const card = document.getElementById('toolErrorCard');
+						const message = data.error || 'The tool call failed.';
+						const kind = data.kind || 'tool';
+						document.getElementById('toolErrorTitle').textContent = errorTitle(kind);
+						document.getElementById('toolErrorMessage').textContent = message;
+						document.getElementById('toolErrorDetails').textContent = data.details || message;
+						document.getElementById('retryToolButton').hidden = !lastToolPayload;
+						card.hidden = false;
+						card.scrollIntoView({ block: 'nearest' });
+					}
+
+					function submitToolPayload(data) {
+						lastToolPayload = data;
+						hideToolError();
+						executeStartedAt = performance.now();
+						const executeButton = document.getElementById('executeButton');
+						const responseViewer = document.getElementById('responseViewer');
+						const responseHeader = document.getElementById('responseHeader');
+						const responseContent = document.getElementById('responseContent');
+						executeButton.disabled = true;
+						executeButton.textContent = 'Executing…';
+						executeButton.classList.remove('success', 'error');
+						responseViewer.style.display = 'block';
+						responseHeader.className = 'response-header';
+						responseHeader.textContent = 'Running';
+						responseContent.textContent = 'Waiting for the server…';
+						responseViewer.scrollIntoView({ block: 'nearest' });
+
+						vscode.postMessage({
+							command: 'executeTool',
+							data: data
+						});
+					}
+
+					function retryTool() {
+						if (!lastToolPayload) {
+							return;
+						}
+						submitToolPayload(lastToolPayload);
+					}
+
 					function showToolModal(toolName, fields) {
 						const modal = document.getElementById('toolModal');
 						const modalTitle = document.getElementById('modalTitle');
@@ -1388,7 +1588,9 @@ export class MCPInspectorPanel {
 						document.getElementById('copyButton').style.display = 'none';
 						document.getElementById('rawMode').checked = false;
 						document.getElementById('rawArgs').value = '';
+						lastToolPayload = null;
 						clearToolErrors();
+						hideToolError();
 
 						modalTitle.textContent = 'Execute ' + toolName;
 						fields.forEach(field => toolFields.appendChild(createToolField(field)));
@@ -1421,20 +1623,7 @@ export class MCPInspectorPanel {
 							// The call can take a while, and the result renders below
 							// the buttons, so show progress and keep it in view.
 							clearToolErrors();
-							executeStartedAt = performance.now();
-							executeButton.disabled = true;
-							executeButton.textContent = 'Executing…';
-							executeButton.classList.remove('success', 'error');
-							responseViewer.style.display = 'block';
-							responseHeader.className = 'response-header';
-							responseHeader.textContent = 'Running';
-							responseContent.textContent = 'Waiting for the server…';
-							responseViewer.scrollIntoView({ block: 'nearest' });
-
-							vscode.postMessage({
-								command: 'executeTool',
-								data: data
-							});
+							submitToolPayload(data);
 						};
 
 						modal.style.display = 'block';
@@ -1511,6 +1700,7 @@ export class MCPInspectorPanel {
 								executeButton.textContent = 'Execute';
 								executeButton.classList.remove('success', 'error');
 								responseViewer.style.display = 'none';
+								hideToolError();
 								showToolErrors(message.data?.errors || []);
 								break;
 							}
@@ -1534,6 +1724,14 @@ export class MCPInspectorPanel {
 								responseHeader.className = 'response-header ' + (failed ? 'error' : 'success');
 								responseHeader.textContent = (failed ? 'Failed' : 'Success')
 									+ (elapsed ? ' · ' + elapsed : '');
+								if (data.success === false) {
+									document.getElementById('copyButton').style.display = 'none';
+									responseViewer.style.display = 'none';
+									showToolError(data);
+									break;
+								}
+
+								hideToolError();
 								document.getElementById('copyButton').style.display = 'inline-block';
 								responseViewer.style.display = 'block';
 								responseContent.textContent = formatToolResult(data);
@@ -1610,7 +1808,9 @@ export class MCPInspectorPanel {
 					command: 'connectionStatus',
 					data: {
 						success: false,
-						error: result.error
+						error: result.error,
+						details: result.details,
+						kind: result.kind
 					}
 				});
 			}
@@ -1619,7 +1819,8 @@ export class MCPInspectorPanel {
 				command: 'connectionStatus',
 				data: {
 					success: false,
-					error: error instanceof Error ? error.message : 'Unknown error occurred'
+					error: error instanceof Error ? error.message : 'Unknown error occurred',
+					kind: 'transport'
 				}
 			});
 		}
@@ -1673,7 +1874,9 @@ export class MCPInspectorPanel {
 						success: false,
 						error: result.error,
 						details: result.details,
-						corsLikely: result.corsLikely
+						corsLikely: result.corsLikely,
+						kind: result.kind,
+						curl: result.curl
 					}
 				});
 
@@ -1692,7 +1895,8 @@ export class MCPInspectorPanel {
 				command: 'connectionStatus',
 				data: {
 					success: false,
-					error: message
+					error: message,
+					kind: 'transport'
 				}
 			});
 			void vscode.window.showErrorMessage(`MCP Inspector: ${message}`);
@@ -1780,6 +1984,13 @@ export class MCPInspectorPanel {
 		}
     }
 
+	private async handleOpenSettings(kind?: string) {
+		const query = kind === 'tls'
+			? 'mcp--inspector.tls'
+			: '@ext:DhananjaySenday.mcp--inspector';
+		await vscode.commands.executeCommand('workbench.action.openSettings', query);
+	}
+
 	private async handleToolExecution(payload: any) {
 		const toolName = typeof payload?.toolName === 'string' ? payload.toolName : '';
 		try {
@@ -1819,11 +2030,13 @@ export class MCPInspectorPanel {
 				data: result
 			});
 		} catch (error) {
+			const message = error instanceof Error ? error.message : 'Unknown error occurred';
 			this._panel.webview.postMessage({
 				command: 'toolExecutionResponse',
 				data: {
 					success: false,
-					error: error instanceof Error ? error.message : 'Unknown error occurred'
+					error: message,
+					kind: message === 'Not connected to MCP server' ? 'transport' : 'tool'
 				}
 			});
 		}

@@ -73,9 +73,13 @@ export class MCPClient implements IMCPClient {
 
       return { success: true, tools: this.tools };
     } catch (error) {
+      const raw = error instanceof Error ? error.message : "Failed to connect to STDIO server";
+      const failure = describeFailure(raw, null);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to connect to STDIO server",
+        error: failure.message,
+        details: failure.details,
+        kind: failure.kind,
       };
     }
   }
@@ -117,11 +121,17 @@ export class MCPClient implements IMCPClient {
       return { success: true, tools: this.tools };
     } catch (e) {
       if (e instanceof UnauthorizedError) {
-        return { success: false, authRequired: true, error: "This server requires sign-in." };
+        return { success: false, authRequired: true, error: "This server requires sign-in.", kind: "auth" };
       }
       const raw = e instanceof Error ? e.message : "Unknown error occurred";
       const failure = describeFailure(raw, endpointOf(serverUrl));
-      return { success: false, error: failure.message, details: failure.details };
+      return {
+        success: false,
+        error: failure.message,
+        details: failure.details,
+        kind: failure.kind,
+        curl: failure.curl,
+      };
     }
   }
 
@@ -161,11 +171,17 @@ export class MCPClient implements IMCPClient {
       return { success: true, tools: this.tools };
     } catch (error) {
       if (error instanceof UnauthorizedError) {
-        return { success: false, authRequired: true, error: "This server requires sign-in." };
+        return { success: false, authRequired: true, error: "This server requires sign-in.", kind: "auth" };
       }
       const raw = error instanceof Error ? error.message : "Unknown error occurred";
       const failure = describeFailure(raw, endpointOf(serverUrl));
-      return { success: false, error: failure.message, details: failure.details };
+      return {
+        success: false,
+        error: failure.message,
+        details: failure.details,
+        kind: failure.kind,
+        curl: failure.curl,
+      };
     }
   }
 
@@ -181,9 +197,14 @@ export class MCPClient implements IMCPClient {
     try {
       this.tlsFetch = await createTlsFetch(this.tls);
     } catch (error) {
+      const raw = error instanceof Error ? error.message : "could not load TLS material";
+      const failure = describeFailure(raw, endpoint, false, "tls");
       return {
         success: false,
-        error: `TLS configuration error: ${error instanceof Error ? error.message : "could not load TLS material"}`,
+        error: `TLS configuration error: ${raw}`,
+        details: raw,
+        kind: "tls",
+        curl: failure.curl,
       };
     }
     const useOAuth = authMode !== "static" && !!this.secrets && supportsOAuth(serverUrl);
@@ -286,6 +307,7 @@ export class MCPClient implements IMCPClient {
               success: false,
               authRequired: true,
               error: error instanceof Error ? error.message : "Sign-in failed",
+              kind: "auth",
             };
           }
         },
@@ -313,7 +335,13 @@ export class MCPClient implements IMCPClient {
       return { success: true, result };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      return { success: false, error: errorMessage };
+      const failure = describeFailure(errorMessage, null, false, "tool");
+      return {
+        success: false,
+        error: failure.message,
+        details: failure.details,
+        kind: failure.kind,
+      };
     }
   }
 

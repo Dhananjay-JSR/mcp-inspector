@@ -126,7 +126,7 @@ export class MCPClient implements IMCPClient {
       return { success: true, tools: this.tools };
     } catch (error) {
       if (isUnauthorized(error)) {
-        return { success: false, authRequired: true, error: "This server requires sign-in." };
+        return { success: false, authRequired: true, error: "This server requires sign-in.", kind: "auth" };
       }
       return this.failure(error, "SSE", serverUrl);
     }
@@ -165,7 +165,7 @@ export class MCPClient implements IMCPClient {
       return { success: true, tools: this.tools };
     } catch (error) {
       if (isUnauthorized(error)) {
-        return { success: false, authRequired: true, error: "This server requires sign-in." };
+        return { success: false, authRequired: true, error: "This server requires sign-in.", kind: "auth" };
       }
       return this.failure(error, "Streamable HTTP", serverUrl);
     }
@@ -292,6 +292,7 @@ export class MCPClient implements IMCPClient {
               success: false,
               authRequired: true,
               error: error instanceof Error ? error.message : "Sign-in failed",
+              kind: "auth",
             };
           }
         },
@@ -320,6 +321,8 @@ export class MCPClient implements IMCPClient {
       error: failure.message,
       details: failure.details,
       corsLikely: failure.corsLikely,
+      kind: failure.kind,
+      curl: failure.curl,
     };
   }
 
@@ -339,7 +342,13 @@ export class MCPClient implements IMCPClient {
       return { success: true, result };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      return { success: false, error: errorMessage };
+      const failure = describeFailure(errorMessage, null, false, "tool");
+      return {
+        success: false,
+        error: failure.message,
+        details: failure.details,
+        kind: failure.kind,
+      };
     }
   }
 

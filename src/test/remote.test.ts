@@ -46,10 +46,28 @@ suite('Remote transport routing', () => {
 		const tried: string[] = [];
 		const result = await connectWithFallback('https://example.com/mcp', {}, async (transport) => {
 			tried.push(transport);
-			return { success: false, error: 'blocked', corsLikely: true };
+			return { success: false, error: 'blocked', corsLikely: true, kind: 'cors' };
 		});
 
 		assert.deepStrictEqual(tried, ['streamable-http']);
 		assert.strictEqual(result.corsLikely, true);
+		assert.strictEqual(result.kind, 'cors');
+	});
+
+	test('keeps the first failure classification and curl across attempts', async () => {
+		const result = await connectWithFallback('https://example.com/mcp', {}, async (transport) =>
+			transport === 'streamable-http'
+				? {
+						success: false,
+						error: 'connection refused',
+						kind: 'transport',
+						curl: "curl -i 'https://example.com/mcp'",
+					}
+				: { success: false, error: '404', kind: 'config' },
+		);
+
+		assert.strictEqual(result.success, false);
+		assert.strictEqual(result.kind, 'transport');
+		assert.strictEqual(result.curl, "curl -i 'https://example.com/mcp'");
 	});
 });
