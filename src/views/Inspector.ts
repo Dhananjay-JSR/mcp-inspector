@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import { MCPClient } from '../transport/MCPTransport';
+import type { Tool } from '../transport/types';
 import { normalizeTlsConfig, readTlsConfig, saveTlsConfig } from '../transport/tlsSettings';
+import { buildToolArguments, buildToolFields, parseRawArguments } from '../tools/schemaForm';
+import type { ToolField } from '../tools/schemaForm';
 
 const RELAY_BASE_URL = 'https://mcp-relay.dhananjaay.dev';
 const RELAY_REPO_URL = 'https://github.com/Dhananjay-JSR/mcp-inspector-relay';
@@ -10,6 +13,7 @@ export class MCPInspectorPanel {
 	private readonly _panel: vscode.WebviewPanel;
 	private _disposables: vscode.Disposable[] = [];
     private _mcpClient: MCPClient | null = null;
+    private _tools = new Map<string, Tool>();
     private readonly _isWeb: boolean;
     private readonly _secrets?: vscode.SecretStorage;
 
@@ -44,7 +48,7 @@ export class MCPInspectorPanel {
 						await this.handleMCPDisconnect();
                         break;
                     case 'executeTool':
-                        await this.handleToolExecution(message.data.toolName, message.data.args);
+                        await this.handleToolExecution(message.data);
                         break;
                     case 'pickCommand':
                         await this.handlePickCommand();
@@ -537,6 +541,71 @@ export class MCPInspectorPanel {
 					.required-field {
 						color: #ff4444;
 					}
+					.tool-mode {
+						display: flex;
+						justify-content: flex-end;
+						margin-bottom: 10px;
+					}
+					.tool-mode-label {
+						display: inline-flex;
+						align-items: center;
+						gap: 6px;
+						width: auto;
+						margin: 0;
+						font-size: 12px;
+						color: var(--vscode-descriptionForeground);
+					}
+					.tool-mode-label input {
+						width: auto;
+						height: auto;
+						margin: 0;
+					}
+					.tool-errors {
+						margin-bottom: 14px;
+						padding: 8px 10px;
+						border-left: 2px solid var(--vscode-inputValidation-errorBorder, #f14c4c);
+						background: var(--vscode-inputValidation-errorBackground, rgba(255, 68, 68, 0.1));
+						color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+						border-radius: 3px;
+						font-size: 12px;
+					}
+					.tool-errors ul {
+						margin: 6px 0 0;
+						padding-left: 18px;
+					}
+					.field-hint {
+						display: block;
+						margin-top: 4px;
+						font-size: 11px;
+						color: var(--vscode-descriptionForeground);
+					}
+					.boolean-field {
+						display: flex;
+						align-items: center;
+						gap: 8px;
+					}
+					.boolean-field input {
+						width: auto;
+						height: auto;
+						margin: 0;
+					}
+					.json-field,
+					.raw-args {
+						height: auto;
+						min-height: 84px;
+						font-family: var(--vscode-editor-font-family, monospace);
+						line-height: 1.4;
+						resize: vertical;
+					}
+					.raw-args {
+						min-height: 190px;
+						white-space: pre;
+					}
+					input[aria-invalid="true"],
+					select[aria-invalid="true"],
+					textarea[aria-invalid="true"] {
+						border-color: var(--vscode-inputValidation-errorBorder, #f14c4c);
+					}
 					.modal-buttons {
 						display: flex;
 						justify-content: flex-end;
@@ -720,7 +789,19 @@ export class MCPInspectorPanel {
 						<h3 id="modalTitle">Execute Tool</h3>
 						<div class="modal-body">
 							<form id="toolForm">
+								<div class="tool-mode">
+									<label class="tool-mode-label">
+										<input type="checkbox" id="rawMode" onchange="toggleRawMode()">
+										Raw JSON
+									</label>
+								</div>
+								<div id="toolErrors" class="tool-errors" role="alert" hidden></div>
 								<div id="toolFields"></div>
+								<div id="rawArgsGroup" class="form-group" hidden>
+									<label for="rawArgs">Arguments</label>
+									<textarea id="rawArgs" class="raw-args" rows="10" spellcheck="false" placeholder="{}"></textarea>
+									<span class="field-hint">A JSON object sent as-is. Required fields and enums are still checked.</span>
+								</div>
 								<div class="modal-buttons">
 									<button type="button" onclick="closeModal()">Cancel</button>
 									<button type="submit" id="executeButton">Execute</button>
@@ -1048,10 +1129,7 @@ export class MCPInspectorPanel {
 						document.getElementById('toolCount').textContent = tools.length + (tools.length === 1 ? ' tool' : ' tools');
 
 						tools.forEach(tool => {
-							const schemaString = encodeURIComponent(JSON.stringify({
-								properties: tool.input_schema?.properties || {},
-								required: tool.input_schema?.required || []
-							}));
+							const fields = Array.isArray(tool.fields) ? tool.fields : [];
 
 							const row = document.createElement('div');
 							row.className = 'tool-container';
@@ -1067,7 +1145,7 @@ export class MCPInspectorPanel {
 							const run = document.createElement('button');
 							run.className = 'tool-button';
 							run.textContent = 'Run';
-							run.addEventListener('click', () => showToolModal(tool.name, schemaString));
+							run.addEventListener('click', () => showToolModal(tool.name, fields));
 
 							row.append(item, run);
 							toolsList.appendChild(row);
@@ -1150,15 +1228,154 @@ export class MCPInspectorPanel {
 						}
 					});
 
-					function showToolModal(toolName, schemaString) {
+					function buildFieldInput(field) {
+						if (field.control === 'boolean') {
+							const input = document.createElement('input');
+							input.type = 'checkbox';
+							if (field.defaultValue === true) {
+								input.checked = true;
+							}
+							return input;
+						}
+
+						if (field.control === 'enum') {
+							const select = document.createElement('select');
+							const placeholder = document.createElement('option');
+							placeholder.value = '';
+							placeholder.textContent = 'Select…';
+							select.appendChild(placeholder);
+							(field.enumValues || []).forEach(value => {
+								const option = document.createElement('option');
+								option.value = String(value);
+								option.textContent = String(value);
+								select.appendChild(option);
+							});
+							if (field.defaultValue !== undefined && field.defaultValue !== null) {
+								select.value = String(field.defaultValue);
+							}
+							return select;
+						}
+
+						if (field.control === 'json') {
+							const textarea = document.createElement('textarea');
+							textarea.className = 'json-field';
+							textarea.rows = 4;
+							textarea.spellcheck = false;
+							textarea.placeholder = field.container === 'array' ? '[]' : '{}';
+							if (field.defaultValue !== undefined && field.defaultValue !== null) {
+								textarea.value = JSON.stringify(field.defaultValue, null, 2);
+							}
+							return textarea;
+						}
+
+						const input = document.createElement('input');
+						if (field.control === 'number' || field.control === 'integer') {
+							input.type = 'number';
+							input.step = field.control === 'integer' ? '1' : 'any';
+						} else {
+							input.type = 'text';
+						}
+						if (field.defaultValue !== undefined && field.defaultValue !== null) {
+							input.value = String(field.defaultValue);
+						}
+						return input;
+					}
+
+					function createToolField(field) {
+						const container = document.createElement('div');
+						container.className = 'form-group';
+
+						const label = document.createElement('label');
+						label.htmlFor = 'field-' + field.name;
+						label.textContent = field.name;
+						if (field.required) {
+							const marker = document.createElement('span');
+							marker.className = 'required-field';
+							marker.textContent = '*';
+							label.append(' ', marker);
+						}
+						container.appendChild(label);
+
+						const input = buildFieldInput(field);
+						input.id = 'field-' + field.name;
+						input.name = field.name;
+						if (field.control === 'boolean') {
+							const row = document.createElement('div');
+							row.className = 'boolean-field';
+							row.appendChild(input);
+							container.appendChild(row);
+						} else {
+							container.appendChild(input);
+						}
+
+						const hints = [];
+						if (field.description) {
+							hints.push(field.description);
+						}
+						if (field.control === 'json') {
+							hints.push('JSON ' + (field.container === 'array' ? 'array' : 'object') + '.');
+						}
+						if (hints.length) {
+							const hint = document.createElement('span');
+							hint.className = 'field-hint';
+							hint.textContent = hints.join(' ');
+							container.appendChild(hint);
+						}
+
+						return container;
+					}
+
+					function clearToolErrors() {
+						const box = document.getElementById('toolErrors');
+						box.replaceChildren();
+						box.hidden = true;
+						document.querySelectorAll('[aria-invalid="true"]').forEach(element => {
+							element.removeAttribute('aria-invalid');
+						});
+					}
+
+					function showToolErrors(errors) {
+						const box = document.getElementById('toolErrors');
+						box.replaceChildren();
+						const heading = document.createElement('strong');
+						heading.textContent = 'Fix these before running';
+						box.appendChild(heading);
+						const list = document.createElement('ul');
+						errors.forEach(error => {
+							const item = document.createElement('li');
+							item.textContent = error.name
+								? error.name + ' ' + error.message
+								: error.message;
+							list.appendChild(item);
+							if (error.name) {
+								const input = document.getElementById('field-' + error.name);
+								if (input) {
+									input.setAttribute('aria-invalid', 'true');
+								}
+							}
+						});
+						box.appendChild(list);
+						box.hidden = false;
+						box.scrollIntoView({ block: 'nearest' });
+					}
+
+					function toggleRawMode() {
+						const raw = document.getElementById('rawMode').checked;
+						document.getElementById('toolFields').hidden = raw;
+						document.getElementById('rawArgsGroup').hidden = !raw;
+						clearToolErrors();
+					}
+
+					function showToolModal(toolName, fields) {
 						const modal = document.getElementById('toolModal');
 						const modalTitle = document.getElementById('modalTitle');
 						const toolFields = document.getElementById('toolFields');
 						const responseViewer = document.getElementById('responseViewer');
 						const responseContent = document.getElementById('responseContent');
+						fields = Array.isArray(fields) ? fields : [];
 
 						// Reset the form and response viewer
-						toolFields.innerHTML = '';
+						toolFields.replaceChildren();
 						responseViewer.style.display = 'none';
 						responseContent.textContent = '';
 						const executeButton = document.getElementById('executeButton');
@@ -1169,56 +1386,46 @@ export class MCPInspectorPanel {
 						responseHeader.className = 'response-header';
 						responseHeader.textContent = '';
 						document.getElementById('copyButton').style.display = 'none';
+						document.getElementById('rawMode').checked = false;
+						document.getElementById('rawArgs').value = '';
+						clearToolErrors();
 
-						// Parse the schema
-						const schema = JSON.parse(decodeURIComponent(schemaString));
-						modalTitle.textContent = \`Execute \${toolName}\`;
-
-						// Create form fields based on schema
-						Object.entries(schema.properties).forEach(([key, value]) => {
-							const isRequired = schema.required.includes(key);
-							const fieldContainer = document.createElement('div');
-							fieldContainer.className = 'form-group';
-
-							const label = document.createElement('label');
-							label.htmlFor = key;
-							label.textContent = key;
-							if (isRequired) {
-								const marker = document.createElement('span');
-								marker.className = 'required-field';
-								marker.textContent = '*';
-								label.append(' ', marker);
-							}
-							
-							const input = document.createElement('input');
-							input.type = 'text';
-							input.id = key;
-							input.name = key;
-							input.required = isRequired;
-
-							fieldContainer.appendChild(label);
-							fieldContainer.appendChild(input);
-							toolFields.appendChild(fieldContainer);
-						});
+						modalTitle.textContent = 'Execute ' + toolName;
+						fields.forEach(field => toolFields.appendChild(createToolField(field)));
+						toggleRawMode();
 
 						// Handle form submission
 						const form = document.getElementById('toolForm');
 						form.onsubmit = async (e) => {
 							e.preventDefault();
-							const formData = new FormData(form);
-							const args = {};
-							formData.forEach((value, key) => {
-								if (value) args[key] = value;
-							});
+
+							const raw = document.getElementById('rawMode').checked;
+							const data = { toolName: toolName };
+							if (raw) {
+								data.mode = 'raw';
+								data.text = document.getElementById('rawArgs').value;
+							} else {
+								data.mode = 'form';
+								data.values = {};
+								fields.forEach(field => {
+									const input = document.getElementById('field-' + field.name);
+									if (!input) {
+										return;
+									}
+									data.values[field.name] = field.control === 'boolean'
+										? input.checked
+										: input.value;
+								});
+							}
 
 							// The call can take a while, and the result renders below
 							// the buttons, so show progress and keep it in view.
+							clearToolErrors();
 							executeStartedAt = performance.now();
 							executeButton.disabled = true;
 							executeButton.textContent = 'Executing…';
 							executeButton.classList.remove('success', 'error');
 							responseViewer.style.display = 'block';
-							const responseHeader = document.getElementById('responseHeader');
 							responseHeader.className = 'response-header';
 							responseHeader.textContent = 'Running';
 							responseContent.textContent = 'Waiting for the server…';
@@ -1226,10 +1433,7 @@ export class MCPInspectorPanel {
 
 							vscode.postMessage({
 								command: 'executeTool',
-								data: {
-									toolName: toolName,
-									args: args
-								}
+								data: data
 							});
 						};
 
@@ -1300,6 +1504,16 @@ export class MCPInspectorPanel {
 					window.addEventListener('message', event => {
 						const message = event.data;
 						switch (message.command) {
+							case 'toolValidationErrors': {
+								const executeButton = document.getElementById('executeButton');
+								const responseViewer = document.getElementById('responseViewer');
+								executeButton.disabled = false;
+								executeButton.textContent = 'Execute';
+								executeButton.classList.remove('success', 'error');
+								responseViewer.style.display = 'none';
+								showToolErrors(message.data?.errors || []);
+								break;
+							}
 							case 'toolExecutionResponse': {
 								const responseViewer = document.getElementById('responseViewer');
 								const responseContent = document.getElementById('responseContent');
@@ -1354,9 +1568,23 @@ export class MCPInspectorPanel {
 		}
 	}
 
+    /**
+     * Keeps the tool schemas for execution and describes their controls to the
+     * webview. Field mapping stays on this side so desktop and web share it.
+     */
+    private rememberTools(tools: Tool[] | undefined): Array<Tool & { fields: ToolField[] }> {
+        const list = tools ?? [];
+        this._tools = new Map(list.map((tool) => [tool.name, tool]));
+        return list.map((tool) => ({
+            ...tool,
+            fields: buildToolFields(tool.input_schema),
+        }));
+    }
+
     private async handleStdioConnection(connectionData: any) {
 		try {
 			// Create a new MCP client for this session
+			this._tools.clear();
 			this._mcpClient = new MCPClient(this._secrets);
 
 			const serverScriptPath = connectionData.command;
@@ -1373,7 +1601,7 @@ export class MCPInspectorPanel {
 					command: 'connectionStatus',
 					data: {
 						success: true,
-						tools: result.tools
+						tools: this.rememberTools(result.tools)
 					}
 				});
 			} else {
@@ -1405,6 +1633,7 @@ export class MCPInspectorPanel {
 			if (connectionData.tls) {
 				await saveTlsConfig(tls);
 			}
+			this._tools.clear();
 			this._mcpClient = new MCPClient(this._secrets, tls);
 
 			const serverUrl = connectionData.serverUrl;
@@ -1433,7 +1662,7 @@ export class MCPInspectorPanel {
 					command: 'connectionStatus',
 					data: {
 						success: true,
-						tools: result.tools,
+						tools: this.rememberTools(result.tools),
 						transport: result.transport
 					}
 				});
@@ -1538,6 +1767,7 @@ export class MCPInspectorPanel {
         if (this._mcpClient) {
 			await this._mcpClient.disconnect();
 			this._mcpClient = null;
+			this._tools.clear();
 			
 			// Send disconnect status to webview
 			this._panel.webview.postMessage({
@@ -1550,13 +1780,39 @@ export class MCPInspectorPanel {
 		}
     }
 
-	private async handleToolExecution(toolName: string, args: Record<string, any>) {
+	private async handleToolExecution(payload: any) {
+		const toolName = typeof payload?.toolName === 'string' ? payload.toolName : '';
 		try {
 			if (!this._mcpClient) {
 				throw new Error('Not connected to MCP server');
 			}
 
-			const result = await this._mcpClient.executeTool(toolName, args);
+			const tool = this._tools.get(toolName);
+			if (!tool) {
+				throw new Error(`Unknown tool: ${toolName || '(missing name)'}`);
+			}
+
+			const built = payload?.mode === 'raw'
+				? parseRawArguments(
+					typeof payload?.text === 'string' ? payload.text : '',
+					tool.input_schema,
+				)
+				: buildToolArguments(
+					tool.input_schema,
+					payload && typeof payload.values === 'object' && payload.values
+						? payload.values
+						: {},
+				);
+
+			if (built.errors.length > 0) {
+				this._panel.webview.postMessage({
+					command: 'toolValidationErrors',
+					data: { errors: built.errors }
+				});
+				return;
+			}
+
+			const result = await this._mcpClient.executeTool(toolName, built.arguments);
 			
 			this._panel.webview.postMessage({
 				command: 'toolExecutionResponse',
