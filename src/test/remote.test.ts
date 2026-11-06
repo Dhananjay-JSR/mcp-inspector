@@ -54,6 +54,18 @@ suite('Remote transport routing', () => {
 		assert.strictEqual(result.kind, 'cors');
 	});
 
+	test('keeps authRequired from the first failure', async () => {
+		const result = await connectWithFallback('https://example.com/mcp', {}, async () => ({
+			success: false,
+			error: 'sign-in failed',
+			authRequired: true,
+			kind: 'auth',
+		}));
+
+		assert.strictEqual(result.authRequired, true);
+		assert.strictEqual(result.kind, 'auth');
+	});
+
 	test('keeps the first failure classification and curl across attempts', async () => {
 		const result = await connectWithFallback('https://example.com/mcp', {}, async (transport) =>
 			transport === 'streamable-http'

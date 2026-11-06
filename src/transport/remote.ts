@@ -56,5 +56,7 @@ export async function connectWithFallback(
     details: failures.join("\n"),
     kind: firstFailure?.kind,
     curl: firstFailure?.curl,
+    authRequired: firstFailure?.authRequired,
+    corsLikely: firstFailure?.corsLikely,
   };
 }

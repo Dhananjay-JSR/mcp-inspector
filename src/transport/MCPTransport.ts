@@ -8,7 +8,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import type { StreamableHTTPClientTransportOptions } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import * as vscode from "vscode";
 import { OAuthCallbackServer, SecretStorageOAuthProvider, supportsOAuth } from "../auth/oauth";
-import { describeFailure } from "./errorHints";
+import { describeError } from "./errorHints";
 import { connectWithFallback } from "./remote";
 import { createTlsFetch } from "./tls";
 import type { TlsConfig, TlsFetch } from "./tls";
@@ -73,8 +73,7 @@ export class MCPClient implements IMCPClient {
 
       return { success: true, tools: this.tools };
     } catch (error) {
-      const raw = error instanceof Error ? error.message : "Failed to connect to STDIO server";
-      const failure = describeFailure(raw, null);
+      const failure = describeError(error, null);
       return {
         success: false,
         error: failure.message,
@@ -123,8 +122,7 @@ export class MCPClient implements IMCPClient {
       if (e instanceof UnauthorizedError) {
         return { success: false, authRequired: true, error: "This server requires sign-in.", kind: "auth" };
       }
-      const raw = e instanceof Error ? e.message : "Unknown error occurred";
-      const failure = describeFailure(raw, endpointOf(serverUrl));
+      const failure = describeError(e, endpointOf(serverUrl));
       return {
         success: false,
         error: failure.message,
@@ -173,8 +171,7 @@ export class MCPClient implements IMCPClient {
       if (error instanceof UnauthorizedError) {
         return { success: false, authRequired: true, error: "This server requires sign-in.", kind: "auth" };
       }
-      const raw = error instanceof Error ? error.message : "Unknown error occurred";
-      const failure = describeFailure(raw, endpointOf(serverUrl));
+      const failure = describeError(error, endpointOf(serverUrl));
       return {
         success: false,
         error: failure.message,
@@ -198,7 +195,7 @@ export class MCPClient implements IMCPClient {
       this.tlsFetch = await createTlsFetch(this.tls);
     } catch (error) {
       const raw = error instanceof Error ? error.message : "could not load TLS material";
-      const failure = describeFailure(raw, endpoint, false, "tls");
+      const failure = describeError(error, endpoint, { fallbackKind: "tls" });
       return {
         success: false,
         error: `TLS configuration error: ${raw}`,
@@ -334,8 +331,7 @@ export class MCPClient implements IMCPClient {
       });
       return { success: true, result };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      const failure = describeFailure(errorMessage, null, false, "tool");
+      const failure = describeError(error, null, { fallbackKind: "tool" });
       return {
         success: false,
         error: failure.message,

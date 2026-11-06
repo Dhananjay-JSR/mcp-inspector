@@ -146,6 +146,36 @@ function messageFor(kind: FailureKind, raw: string, endpoint: URL | null): strin
 	}
 }
 
+interface DescribeErrorOptions {
+	fallbackKind?: FailureKind;
+	corsLikely?: boolean;
+}
+
+/**
+ * The MCP SDK puts the HTTP status in `error.code` and leaves it out of the
+ * message, so a 401/403/404 would otherwise look like a generic network error.
+ */
+export function describeError(
+	error: unknown,
+	endpoint: URL | null,
+	options: DescribeErrorOptions = {},
+): FailureDescription {
+	const message =
+		error instanceof Error ? error.message : "Unknown error occurred";
+	const code = (error as { code?: unknown } | null | undefined)?.code;
+	const raw =
+		typeof code === "number" && !new RegExp(`\\b${code}\\b`).test(message)
+			? `${message} (HTTP ${code})`
+			: message;
+
+	return describeFailure(
+		raw,
+		endpoint,
+		options.corsLikely ?? false,
+		options.fallbackKind ?? "transport",
+	);
+}
+
 /**
  * Turns a raw transport error into a classified, actionable card while keeping
  * the original text for the details disclosure.

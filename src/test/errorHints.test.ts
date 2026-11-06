@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { buildCurlCommand, describeFailure } from '../transport/errorHints';
+import { buildCurlCommand, describeError, describeFailure } from '../transport/errorHints';
 
 suite('Error hints', () => {
 	test('suggests /mcp when the URL has no path', () => {
@@ -123,6 +123,31 @@ suite('Error hints', () => {
 		const failure = describeFailure('404 Not Found', new URL('https://example.com/mcp'));
 
 		assert.strictEqual(failure.curl, "curl -i 'https://example.com/mcp'");
+	});
+
+	test('uses the SDK status code that the message omits', () => {
+		const error = Object.assign(
+			new Error('Streamable HTTP error: Error POSTing to endpoint: '),
+			{ code: 401 },
+		);
+		const failure = describeError(error, new URL('https://example.com/mcp'));
+
+		assert.strictEqual(failure.kind, 'auth');
+		assert.match(failure.details, /HTTP 401/);
+	});
+
+	test('classifies 403 and 404 SDK errors', () => {
+		const forbidden = Object.assign(new Error('request failed'), { code: 403 });
+		const missing = Object.assign(new Error('request failed'), { code: 404 });
+
+		assert.strictEqual(describeError(forbidden, null).kind, 'auth');
+		assert.strictEqual(describeError(missing, null).kind, 'config');
+	});
+
+	test('does not duplicate a status already present in the message', () => {
+		const error = Object.assign(new Error('404 Not Found'), { code: 404 });
+
+		assert.strictEqual(describeError(error, null).details, '404 Not Found');
 	});
 });
 

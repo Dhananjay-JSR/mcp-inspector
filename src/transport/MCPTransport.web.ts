@@ -15,7 +15,7 @@ import {
   supportsOAuth,
   WebOAuthCallback,
 } from "../auth/oauth.web";
-import { describeFailure } from "./errorHints";
+import { describeError } from "./errorHints";
 import { connectWithFallback } from "./remote";
 import type {
   ConnectionResult,
@@ -310,11 +310,9 @@ export class MCPClient implements IMCPClient {
     serverUrl: string,
   ): ConnectionResult {
     const raw = error instanceof Error ? error.message : "Unknown error occurred";
-    const failure = describeFailure(
-      raw,
-      endpointOf(serverUrl),
-      looksLikeNetworkError(error, raw),
-    );
+    const failure = describeError(error, endpointOf(serverUrl), {
+      corsLikely: looksLikeNetworkError(error, raw),
+    });
 
     return {
       success: false,
@@ -341,8 +339,7 @@ export class MCPClient implements IMCPClient {
       });
       return { success: true, result };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      const failure = describeFailure(errorMessage, null, false, "tool");
+      const failure = describeError(error, null, { fallbackKind: "tool" });
       return {
         success: false,
         error: failure.message,
