@@ -781,10 +781,10 @@ export class MCPInspectorPanel {
 						<div class="form-group">
 							<label for="authMode">Authentication</label>
 							<select id="authMode" onchange="handleAuthModeChange()">
-								<option value="oauth">Automatic (browser sign-in)</option>
+								<option value="oauth">Automatic (OAuth 2.0 sign-in)</option>
 								<option value="static">Static header / token</option>
 							</select>
-							<p class="hint" id="authHint">If the server answers 401, the inspector opens its sign-in page.</p>
+							<p class="hint" id="authHint">OAuth 2.0 authorization code flow with PKCE (RFC 6749). The inspector opens a browser only when the server advertises OAuth metadata; a plain 401 shows an authentication error instead.</p>
 						</div>
 						<div class="form-group">
 							<label>Headers</label>
@@ -943,8 +943,8 @@ export class MCPInspectorPanel {
 					function handleAuthModeChange() {
 						const mode = document.getElementById('authMode').value;
 						document.getElementById('authHint').textContent = mode === 'static'
-							? 'Add an Authorization header below. The inspector will not start a sign-in flow.'
-							: 'If the server answers 401, the inspector opens its sign-in page.';
+							? 'Send an Authorization header with every request. The inspector will not start an OAuth flow.'
+							: 'OAuth 2.0 authorization code flow with PKCE (RFC 6749). The inspector opens a browser only when the server advertises OAuth metadata; a plain 401 shows an authentication error instead.';
 						saveState();
 					}
 
