@@ -8,7 +8,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import type { StreamableHTTPClientTransportOptions } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import * as vscode from "vscode";
 import { OAuthCallbackServer, SecretStorageOAuthProvider, supportsOAuth } from "../auth/oauth";
-import { describeError } from "./errorHints";
+import { describeError, describeOAuthBootstrapFailure, isOAuthDiscoveryFailure } from "./errorHints";
 import { connectWithFallback } from "./remote";
 import { createTlsFetch } from "./tls";
 import type { TlsConfig, TlsFetch } from "./tls";
@@ -122,6 +122,16 @@ export class MCPClient implements IMCPClient {
       if (e instanceof UnauthorizedError) {
         return { success: false, authRequired: true, error: "This server requires sign-in.", kind: "auth" };
       }
+      if (authProvider && isOAuthDiscoveryFailure(e)) {
+        const failure = describeOAuthBootstrapFailure(e, endpointOf(serverUrl));
+        return {
+          success: false,
+          error: failure.message,
+          details: failure.details,
+          kind: failure.kind,
+          curl: failure.curl,
+        };
+      }
       const failure = describeError(e, endpointOf(serverUrl));
       return {
         success: false,
@@ -170,6 +180,16 @@ export class MCPClient implements IMCPClient {
     } catch (error) {
       if (error instanceof UnauthorizedError) {
         return { success: false, authRequired: true, error: "This server requires sign-in.", kind: "auth" };
+      }
+      if (authProvider && isOAuthDiscoveryFailure(error)) {
+        const failure = describeOAuthBootstrapFailure(error, endpointOf(serverUrl));
+        return {
+          success: false,
+          error: failure.message,
+          details: failure.details,
+          kind: failure.kind,
+          curl: failure.curl,
+        };
       }
       const failure = describeError(error, endpointOf(serverUrl));
       return {

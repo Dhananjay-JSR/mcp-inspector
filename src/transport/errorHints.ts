@@ -51,6 +51,39 @@ export function buildCurlCommand(endpoint: URL | null): string | undefined {
 	return `curl -i '${url}'`;
 }
 
+/**
+ * The MCP SDK runs OAuth discovery inside connect() when an auth provider is
+ * attached. A server that answers 401 without OAuth metadata turns that
+ * discovery request into a 404, which would otherwise hide the 401.
+ */
+export function isOAuthDiscoveryFailure(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : "";
+	return (
+		/invalid oauth error response/i.test(message) ||
+		/protected resource metadata/i.test(message) ||
+		/well-known oauth/i.test(message)
+	);
+}
+
+/**
+ * A server that requires sign-in but cannot start the OAuth flow is an
+ * authentication failure, not a missing endpoint.
+ */
+export function describeOAuthBootstrapFailure(
+	error: unknown,
+	endpoint: URL | null,
+): FailureDescription {
+	return {
+		kind: "auth",
+		title: TITLES.auth,
+		message:
+			"The server requires sign-in, but automatic sign-in could not start. Add an Authorization header or a static token.",
+		details: error instanceof Error ? error.message : "OAuth discovery failed",
+		corsLikely: false,
+		curl: buildCurlCommand(endpoint),
+	};
+}
+
 function classify(
 	raw: string,
 	corsLikely: boolean,

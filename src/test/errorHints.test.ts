@@ -1,5 +1,11 @@
 import * as assert from 'assert';
-import { buildCurlCommand, describeError, describeFailure } from '../transport/errorHints';
+import {
+	buildCurlCommand,
+	describeError,
+	describeFailure,
+	describeOAuthBootstrapFailure,
+	isOAuthDiscoveryFailure,
+} from '../transport/errorHints';
 
 suite('Error hints', () => {
 	test('suggests /mcp when the URL has no path', () => {
@@ -148,6 +154,47 @@ suite('Error hints', () => {
 		const error = Object.assign(new Error('404 Not Found'), { code: 404 });
 
 		assert.strictEqual(describeError(error, null).details, '404 Not Found');
+	});
+
+	test('recognises the SDK OAuth discovery failures', () => {
+		assert.strictEqual(
+			isOAuthDiscoveryFailure(
+				new Error('HTTP 404: Invalid OAuth error response: <!DOCTYPE html>'),
+			),
+			true,
+		);
+		assert.strictEqual(
+			isOAuthDiscoveryFailure(
+				new Error('Resource server does not implement OAuth 2.0 Protected Resource Metadata.'),
+			),
+			true,
+		);
+		assert.strictEqual(
+			isOAuthDiscoveryFailure(
+				new Error('HTTP 503 trying to load well-known OAuth protected resource metadata.'),
+			),
+			true,
+		);
+	});
+
+	test('does not treat an ordinary 404 as an OAuth discovery failure', () => {
+		assert.strictEqual(isOAuthDiscoveryFailure(new Error('404 Not Found')), false);
+	});
+
+	test('describes a failed OAuth bootstrap as authentication, not configuration', () => {
+		const failure = describeOAuthBootstrapFailure(
+			new Error('HTTP 404: Invalid OAuth error response: <!DOCTYPE html>'),
+			new URL('https://httpbin.org/status/401'),
+		);
+
+		assert.strictEqual(failure.kind, 'auth');
+		assert.strictEqual(failure.title, 'Authentication');
+		assert.match(failure.message, /Authorization header/);
+		assert.strictEqual(
+			failure.details,
+			'HTTP 404: Invalid OAuth error response: <!DOCTYPE html>',
+		);
+		assert.strictEqual(failure.curl, "curl -i 'https://httpbin.org/status/401'");
 	});
 });
 

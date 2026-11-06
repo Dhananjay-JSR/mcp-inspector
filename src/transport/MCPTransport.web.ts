@@ -15,7 +15,7 @@ import {
   supportsOAuth,
   WebOAuthCallback,
 } from "../auth/oauth.web";
-import { describeError } from "./errorHints";
+import { describeError, describeOAuthBootstrapFailure, isOAuthDiscoveryFailure } from "./errorHints";
 import { connectWithFallback } from "./remote";
 import type {
   ConnectionResult,
@@ -128,6 +128,9 @@ export class MCPClient implements IMCPClient {
       if (isUnauthorized(error)) {
         return { success: false, authRequired: true, error: "This server requires sign-in.", kind: "auth" };
       }
+      if (authProvider && isOAuthDiscoveryFailure(error)) {
+        return this.oauthBootstrapFailure(error, serverUrl);
+      }
       return this.failure(error, "SSE", serverUrl);
     }
   }
@@ -166,6 +169,9 @@ export class MCPClient implements IMCPClient {
     } catch (error) {
       if (isUnauthorized(error)) {
         return { success: false, authRequired: true, error: "This server requires sign-in.", kind: "auth" };
+      }
+      if (authProvider && isOAuthDiscoveryFailure(error)) {
+        return this.oauthBootstrapFailure(error, serverUrl);
       }
       return this.failure(error, "Streamable HTTP", serverUrl);
     }
@@ -302,6 +308,21 @@ export class MCPClient implements IMCPClient {
     } finally {
       callback?.close();
     }
+  }
+
+  private oauthBootstrapFailure(
+    error: unknown,
+    serverUrl: string,
+  ): ConnectionResult {
+    const failure = describeOAuthBootstrapFailure(error, endpointOf(serverUrl));
+
+    return {
+      success: false,
+      error: failure.message,
+      details: failure.details,
+      kind: failure.kind,
+      curl: failure.curl,
+    };
   }
 
   private failure(
