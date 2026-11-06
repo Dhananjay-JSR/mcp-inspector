@@ -1,3 +1,15 @@
+## [0.9.0](https://github.com/[secure]/mcp-[secure]/compare/v0.8.0...v0.9.0) (2026-11-06)
+
+### Features
+
+* add classified error cards with retry actions ([158f5be](https://github.com/[secure]/mcp-[secure]/commit/158f5be6943aa3756b91b314ba73d02dd7e689d8))
+
+### Bug Fixes
+
+* clarify when OAuth sign-in opens a browser ([8d1470d](https://github.com/[secure]/mcp-[secure]/commit/8d1470df13ac8620ee76f1b909b2a31775658256))
+* keep SDK HTTP status codes in error cards ([c58333a](https://github.com/[secure]/mcp-[secure]/commit/c58333a09a6a78e22b235185715f680df7c61c17))
+* report OAuth discovery failures as authentication ([a33878b](https://github.com/[secure]/mcp-[secure]/commit/a33878bd0bed79e63d1049f7adb32a3a64a8248d))
+
 ## [0.8.0](https://github.com/[secure]/mcp-[secure]/compare/v0.7.2...v0.8.0) (2026-11-02)
 
 ### Features
