@@ -1,3 +1,5 @@
+import type { FailureKind } from "./errorHints";
+
 export interface InputSchema {
   type: "object";
   properties?: unknown | null;
@@ -23,12 +25,18 @@ export interface ConnectionResult {
   /** The server answered 401 and needs an OAuth sign-in. */
   authRequired?: boolean;
   corsLikely?: boolean;
+  /** Classified failure, used to choose the error card actions. */
+  kind?: FailureKind;
+  /** Header-free reproduction command for a remote endpoint. */
+  curl?: string;
 }
 
 export interface ToolResult {
   success: boolean;
   result?: unknown;
   error?: string;
+  details?: string;
+  kind?: FailureKind;
 }
 
 export type HeadersMap = Record<string, string>;

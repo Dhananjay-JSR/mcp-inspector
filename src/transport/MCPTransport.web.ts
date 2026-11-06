@@ -15,7 +15,7 @@ import {
   supportsOAuth,
   WebOAuthCallback,
 } from "../auth/oauth.web";
-import { describeFailure } from "./errorHints";
+import { describeError, describeOAuthBootstrapFailure, isOAuthDiscoveryFailure } from "./errorHints";
 import { connectWithFallback } from "./remote";
 import type {
   ConnectionResult,
@@ -126,7 +126,10 @@ export class MCPClient implements IMCPClient {
       return { success: true, tools: this.tools };
     } catch (error) {
       if (isUnauthorized(error)) {
-        return { success: false, authRequired: true, error: "This server requires sign-in." };
+        return { success: false, authRequired: true, error: "This server requires sign-in.", kind: "auth" };
+      }
+      if (authProvider && isOAuthDiscoveryFailure(error)) {
+        return this.oauthBootstrapFailure(error, serverUrl);
       }
       return this.failure(error, "SSE", serverUrl);
     }
@@ -165,7 +168,10 @@ export class MCPClient implements IMCPClient {
       return { success: true, tools: this.tools };
     } catch (error) {
       if (isUnauthorized(error)) {
-        return { success: false, authRequired: true, error: "This server requires sign-in." };
+        return { success: false, authRequired: true, error: "This server requires sign-in.", kind: "auth" };
+      }
+      if (authProvider && isOAuthDiscoveryFailure(error)) {
+        return this.oauthBootstrapFailure(error, serverUrl);
       }
       return this.failure(error, "Streamable HTTP", serverUrl);
     }
@@ -292,6 +298,7 @@ export class MCPClient implements IMCPClient {
               success: false,
               authRequired: true,
               error: error instanceof Error ? error.message : "Sign-in failed",
+              kind: "auth",
             };
           }
         },
@@ -303,23 +310,38 @@ export class MCPClient implements IMCPClient {
     }
   }
 
+  private oauthBootstrapFailure(
+    error: unknown,
+    serverUrl: string,
+  ): ConnectionResult {
+    const failure = describeOAuthBootstrapFailure(error, endpointOf(serverUrl));
+
+    return {
+      success: false,
+      error: failure.message,
+      details: failure.details,
+      kind: failure.kind,
+      curl: failure.curl,
+    };
+  }
+
   private failure(
     error: unknown,
     transportLabel: string,
     serverUrl: string,
   ): ConnectionResult {
     const raw = error instanceof Error ? error.message : "Unknown error occurred";
-    const failure = describeFailure(
-      raw,
-      endpointOf(serverUrl),
-      looksLikeNetworkError(error, raw),
-    );
+    const failure = describeError(error, endpointOf(serverUrl), {
+      corsLikely: looksLikeNetworkError(error, raw),
+    });
 
     return {
       success: false,
       error: failure.message,
       details: failure.details,
       corsLikely: failure.corsLikely,
+      kind: failure.kind,
+      curl: failure.curl,
     };
   }
 
@@ -338,8 +360,13 @@ export class MCPClient implements IMCPClient {
       });
       return { success: true, result };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      return { success: false, error: errorMessage };
+      const failure = describeError(error, null, { fallbackKind: "tool" });
+      return {
+        success: false,
+        error: failure.message,
+        details: failure.details,
+        kind: failure.kind,
+      };
     }
   }
 
