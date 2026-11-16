@@ -1,11 +1,16 @@
-import { auth, UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
-import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import type { SSEClientTransportOptions } from "@modelcontextprotocol/sdk/client/sse.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { StreamableHTTPClientTransportOptions } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import {
+  auth,
+  Client,
+  SSEClientTransport,
+  StreamableHTTPClientTransport,
+  UnauthorizedError,
+} from "@modelcontextprotocol/client";
+import type {
+  OAuthClientProvider,
+  SSEClientTransportOptions,
+  StreamableHTTPClientTransportOptions,
+} from "@modelcontextprotocol/client";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { OAuthCallbackServer } from "../auth/oauth";
 import { SecretStorageOAuthProvider, supportsOAuth } from "../auth/provider";
 import { describeError, describeOAuthBootstrapFailure, isOAuthDiscoveryFailure } from "../errorHints";

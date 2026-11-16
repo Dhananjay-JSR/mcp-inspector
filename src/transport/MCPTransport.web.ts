@@ -1,14 +1,18 @@
-import { auth, UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
-import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport, SseError } from "@modelcontextprotocol/sdk/client/sse.js";
-import type { SSEClientTransportOptions } from "@modelcontextprotocol/sdk/client/sse.js";
 import {
+  auth,
+  Client,
+  SdkHttpError,
+  SSEClientTransport,
+  SseError,
   StreamableHTTPClientTransport,
-  StreamableHTTPError,
-} from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { StreamableHTTPClientTransportOptions } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
+  UnauthorizedError,
+} from "@modelcontextprotocol/client";
+import type {
+  FetchLike,
+  OAuthClientProvider,
+  SSEClientTransportOptions,
+  StreamableHTTPClientTransportOptions,
+} from "@modelcontextprotocol/client";
 import { WebOAuthCallback } from "../auth/oauth.web";
 import { SecretStorageOAuthProvider, supportsOAuth } from "@dhananjay-jsr/mcp-inspector-core";
 import { DEFAULT_CLIENT_INFO, describeError, describeOAuthBootstrapFailure, isOAuthDiscoveryFailure, noopNotifier } from "@dhananjay-jsr/mcp-inspector-core";
@@ -64,7 +68,7 @@ function isUnauthorized(error: unknown): boolean {
   if (error instanceof SseError && error.code === 401) {
     return true;
   }
-  if (error instanceof StreamableHTTPError && error.code === 401) {
+  if (error instanceof SdkHttpError && error.status === 401) {
     return true;
   }
   return error instanceof Error && /\b401\b|unauthorized|invalid_token/i.test(error.message);

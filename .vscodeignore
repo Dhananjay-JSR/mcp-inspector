@@ -18,7 +18,6 @@ esbuild.node.mjs
 CONTRIBUTING.md
 esbuild.web.mjs
 esbuild.web-test.mjs
-patch-sdk.js
 .gitignore
 .yarnrc
 vsc-extension-quickstart.md

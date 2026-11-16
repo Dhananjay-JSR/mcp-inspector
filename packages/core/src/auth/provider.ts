@@ -1,9 +1,9 @@
-import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import type {
   OAuthClientInformationMixed,
   OAuthClientMetadata,
+  OAuthClientProvider,
   OAuthTokens,
-} from "@modelcontextprotocol/sdk/shared/auth.js";
+} from "@modelcontextprotocol/client";
 import type { CancellationToken, Notifier, SecretStore } from "../ports";
 import { noopNotifier } from "../ports";
 
