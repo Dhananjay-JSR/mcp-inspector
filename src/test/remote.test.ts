@@ -1,6 +1,6 @@
 import * as assert from 'assert';
-import { preferredTransports, relayUrlFor } from '../transport/endpoint';
-import { connectWithFallback } from '../transport/remote';
+import { preferredTransports, relayUrlFor } from "@dhananjay-jsr/mcp-inspector-core";
+import { connectWithFallback } from "@dhananjay-jsr/mcp-inspector-core";
 
 suite('Remote transport routing', () => {
 	test('prefers Streamable HTTP for a /mcp URL', () => {

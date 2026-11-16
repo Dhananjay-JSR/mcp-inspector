@@ -8,10 +8,10 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import type { StreamableHTTPClientTransportOptions } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import * as vscode from "vscode";
 import { OAuthCallbackServer, SecretStorageOAuthProvider, supportsOAuth } from "../auth/oauth";
-import { describeError, describeOAuthBootstrapFailure, isOAuthDiscoveryFailure } from "./errorHints";
+import { describeError, describeOAuthBootstrapFailure, isOAuthDiscoveryFailure } from "@dhananjay-jsr/mcp-inspector-core";
 import { clientInfo } from "./clientInfo";
 import { toTool } from "./toolMapping";
-import { connectWithFallback } from "./remote";
+import { connectWithFallback } from "@dhananjay-jsr/mcp-inspector-core";
 import { createTlsFetch } from "./tls";
 import type { TlsConfig, TlsFetch } from "./tls";
 import type {
@@ -20,7 +20,7 @@ import type {
   IMCPClient,
   Tool,
   ToolResult,
-} from "./types";
+} from "@dhananjay-jsr/mcp-inspector-core";
 
 function requestOptions(
   headers?: HeadersMap,

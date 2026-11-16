@@ -1,4 +1,4 @@
-import type { InputSchema, Tool } from "./types";
+import type { InputSchema, Tool } from "@dhananjay-jsr/mcp-inspector-core";
 
 /**
  * The SDK tool fields the inspector actually reads. Kept structural so the

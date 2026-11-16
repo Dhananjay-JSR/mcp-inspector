@@ -5,7 +5,7 @@ import {
 	describeFailure,
 	describeOAuthBootstrapFailure,
 	isOAuthDiscoveryFailure,
-} from '../transport/errorHints';
+} from "@dhananjay-jsr/mcp-inspector-core";
 
 suite('Error hints', () => {
 	test('suggests /mcp when the URL has no path', () => {

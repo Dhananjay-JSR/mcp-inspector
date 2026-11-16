@@ -4,6 +4,7 @@
 .vscode-test-web/**
 dist/web-test/**
 fixtures/**
+packages/**
 node_modules/**
 out/test/**
 src/**

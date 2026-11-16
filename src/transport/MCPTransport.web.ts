@@ -15,17 +15,17 @@ import {
   supportsOAuth,
   WebOAuthCallback,
 } from "../auth/oauth.web";
-import { describeError, describeOAuthBootstrapFailure, isOAuthDiscoveryFailure } from "./errorHints";
+import { describeError, describeOAuthBootstrapFailure, isOAuthDiscoveryFailure } from "@dhananjay-jsr/mcp-inspector-core";
 import { clientInfo } from "./clientInfo";
 import { toTool } from "./toolMapping";
-import { connectWithFallback } from "./remote";
+import { connectWithFallback } from "@dhananjay-jsr/mcp-inspector-core";
 import type {
   ConnectionResult,
   HeadersMap,
   IMCPClient,
   Tool,
   ToolResult,
-} from "./types";
+} from "@dhananjay-jsr/mcp-inspector-core";
 
 const STDIO_WEB_ERROR =
   "STDIO is not available in VS Code for the Web. Use the desktop app or Codespaces, or connect to a remote SSE server.";

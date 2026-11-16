@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import { MCPClient } from '../transport/MCPTransport';
-import type { Tool } from '../transport/types';
+import type { Tool } from '@dhananjay-jsr/mcp-inspector-core';
 import { normalizeTlsConfig, readTlsConfig, saveTlsConfig } from '../transport/tlsSettings';
-import { buildToolArguments, buildToolFields, parseRawArguments } from '../tools/schemaForm';
-import type { ToolField } from '../tools/schemaForm';
+import { buildToolArguments, buildToolFields, parseRawArguments } from '@dhananjay-jsr/mcp-inspector-core';
+import type { ToolField } from '@dhananjay-jsr/mcp-inspector-core';
 
 const RELAY_BASE_URL = 'https://mcp-relay.dhananjaay.dev';
 const RELAY_REPO_URL = 'https://github.com/Dhananjay-JSR/mcp-inspector-relay';
