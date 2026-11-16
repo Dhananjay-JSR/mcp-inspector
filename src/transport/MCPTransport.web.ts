@@ -110,7 +110,7 @@ export class MCPClient implements IMCPClient {
         throw new Error("Server URL must start with http:// or https://");
       }
 
-      this.mcp = new Client(this.identity)
+      this.mcp = new Client(this.identity);
       const options: SSEClientTransportOptions = { ...(requestOptions(headers) ?? {}) };
       if (authProvider) {
         options.authProvider = authProvider;
@@ -146,7 +146,7 @@ export class MCPClient implements IMCPClient {
         throw new Error("Server URL must start with http:// or https://");
       }
 
-      this.mcp = new Client(this.identity)
+      this.mcp = new Client(this.identity);
       const options: StreamableHTTPClientTransportOptions = {
         ...(requestOptions(headers) ?? {}),
       };

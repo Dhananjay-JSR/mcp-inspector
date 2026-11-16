@@ -8,6 +8,7 @@ packages/**
 node_modules/**
 out/test/**
 src/**
+scripts/**
 
 docs/**
 esbuild.node.mjs
