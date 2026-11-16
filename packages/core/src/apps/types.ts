@@ -1,4 +1,4 @@
-import type { TimelineEvent } from "../recorder";
+import type { Recording, TimelineEvent } from "../recorder";
 
 export type Severity = "error" | "warning" | "info";
 
@@ -41,9 +41,21 @@ export interface AppsCheckOptions {
   callTools?: boolean;
   /** Arguments per tool name; defaults to `{}`. */
   toolArguments?: Record<string, Record<string, unknown>>;
+  /** Called for every recorded message, for `--ndjson` streaming. */
+  onEvent?: (event: TimelineEvent) => void;
+}
+
+export interface ServerIdentity {
+  name?: string;
+  version?: string;
+  protocolVersion?: string;
 }
 
 export interface AppsCheckResult {
+  recording: Recording;
+  server?: ServerIdentity;
   findings: Finding[];
   verdict: Verdict;
+  /** Set when the transport could not be connected at all. */
+  connectError?: string;
 }

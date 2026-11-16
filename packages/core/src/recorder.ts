@@ -43,13 +43,15 @@ export function recordedTransport(
   inner: Transport,
   recording: Recording,
   channel: Channel = "server",
+  onEvent?: (event: TimelineEvent) => void,
 ): Transport {
   let messageHandler: Transport["onmessage"];
 
   return {
     start: () => inner.start(),
     send: (message, options) => {
-      appendEvent(recording, channel, "out", message);
+      const event = appendEvent(recording, channel, "out", message);
+      onEvent?.(event);
       return inner.send(message, options);
     },
     close: () => inner.close(),
@@ -60,7 +62,8 @@ export function recordedTransport(
       messageHandler = handler;
       inner.onmessage = handler
         ? (message, extra) => {
-            appendEvent(recording, channel, "in", message);
+            const event = appendEvent(recording, channel, "in", message);
+            onEvent?.(event);
             handler(message, extra);
           }
         : undefined;

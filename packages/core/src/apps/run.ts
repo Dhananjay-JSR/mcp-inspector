@@ -4,7 +4,12 @@ import { DEFAULT_CLIENT_INFO } from "../ports";
 import { createRecording, recordedTransport } from "../recorder";
 import type { Recording } from "../recorder";
 import { APP_MIME_TYPE, UI_EXTENSION, appChecks, toolsFrom, uiTools } from "./checks";
-import type { AppsCheckOptions, AppsCheckResult, CheckContext } from "./types";
+import type {
+  AppsCheckOptions,
+  AppsCheckResult,
+  CheckContext,
+  ServerIdentity,
+} from "./types";
 import { computeVerdict } from "./verdict";
 
 /** Capabilities that tell a server the host can render MCP App Views. */
@@ -33,10 +38,15 @@ async function ignoreFailure<T>(task: Promise<T>): Promise<T | undefined> {
  * recording. Every request is best-effort: a failure is captured as an error
  * response in the recording, where the checks can see it.
  */
+export interface RecordedSession {
+  recording: Recording;
+  connectError?: string;
+}
+
 export async function recordSession(
   transport: Transport,
   options: AppsCheckOptions = {},
-): Promise<Recording> {
+): Promise<RecordedSession> {
   const recording = createRecording();
   const client = new Client(DEFAULT_CLIENT_INFO, {
     capabilities: uiClientCapabilities(options.uiCapability !== false),
@@ -45,8 +55,20 @@ export async function recordSession(
       : {}),
   });
 
+  let connectError: string | undefined;
+
   try {
-    await client.connect(recordedTransport(transport, recording));
+    await client.connect(recordedTransport(transport, recording, "server", options.onEvent));
+  } catch (error) {
+    connectError = error instanceof Error ? error.message : String(error);
+  }
+
+  if (connectError) {
+    await ignoreFailure(client.close());
+    return { recording, connectError };
+  }
+
+  try {
     await ignoreFailure(client.listTools());
 
     for (const { ui } of uiTools(recording)) {
@@ -70,12 +92,38 @@ export async function recordSession(
     await ignoreFailure(client.close());
   }
 
-  return recording;
+  return { recording };
 }
 
-export function analyze(recording: Recording, context: CheckContext = {}): AppsCheckResult {
+export function serverIdentity(recording: Recording): ServerIdentity | undefined {
+  for (const event of recording.events) {
+    if (event.channel !== "server" || event.dir !== "in") {
+      continue;
+    }
+    const result = (event.msg as { result?: { serverInfo?: ServerIdentity; protocolVersion?: string } })
+      .result;
+    if (result?.serverInfo) {
+      return { ...result.serverInfo, protocolVersion: result.protocolVersion };
+    }
+  }
+  return undefined;
+}
+
+export function analyze(
+  recording: Recording,
+  context: CheckContext = {},
+  connectError?: string,
+): AppsCheckResult {
   const findings = appChecks.flatMap((check) => check(recording, context));
-  return { findings, verdict: computeVerdict(recording, findings) };
+  return {
+    recording,
+    server: serverIdentity(recording),
+    findings,
+    verdict: connectError
+      ? { ok: false, summary: `Could not connect: ${connectError}` }
+      : computeVerdict(recording, findings),
+    connectError,
+  };
 }
 
 /** One handshake with the UI capability advertised. */
@@ -83,7 +131,8 @@ export async function runAppsCheck(
   transport: Transport,
   options: AppsCheckOptions = {},
 ): Promise<AppsCheckResult> {
-  return analyze(await recordSession(transport, options));
+  const session = await recordSession(transport, options);
+  return analyze(session.recording, {}, session.connectError);
 }
 
 /**
@@ -98,11 +147,15 @@ export async function runAppsCheckPair(
     ...options,
     uiCapability: true,
   });
+  if (withUi.connectError) {
+    return analyze(withUi.recording, {}, withUi.connectError);
+  }
+
   const withoutUi = await recordSession(createTransport(), {
     ...options,
     uiCapability: false,
     callTools: false,
   });
 
-  return analyze(withUi, { baselineTools: toolsFrom(withoutUi) });
+  return analyze(withUi.recording, { baselineTools: toolsFrom(withoutUi.recording) });
 }

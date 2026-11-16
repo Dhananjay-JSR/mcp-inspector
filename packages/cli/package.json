@@ -1,0 +1,23 @@
+{
+  "name": "@dhananjay-jsr/mcp-inspector",
+  "version": "1.0.0",
+  "description": "Agent-first MCP Apps checker",
+  "license": "MIT",
+  "bin": {
+    "mcp-inspector": "dist/cli.js"
+  },
+  "main": "dist/cli.js",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "scripts": {
+    "build": "node ../../esbuild.cli.mjs"
+  },
+  "dependencies": {
+    "@dhananjay-jsr/mcp-inspector-core": "0.0.0",
+    "@modelcontextprotocol/client": "2.4.0"
+  }
+}

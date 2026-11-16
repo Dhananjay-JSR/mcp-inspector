@@ -96,14 +96,14 @@
   },
   "scripts": {
     "vscode:prepublish": "yarn run compile && yarn run package-node && yarn run package-web",
-    "bundle": "yarn run build:ui && yarn run build:core && node esbuild.node.mjs",
-    "package-node": "yarn run build:ui:prod && yarn run build:core && node esbuild.node.mjs --production",
-    "compile": "yarn run build:ui && yarn run build:core && tsc -p ./",
-    "compile-web": "yarn run build:ui && yarn run build:core && node esbuild.web.mjs",
-    "compile-web-tests": "yarn run build:ui && yarn run build:core && node esbuild.web-test.mjs",
-    "watch": "yarn run build:ui && yarn run build:core && tsc -watch -p ./",
+    "bundle": "yarn run build:ui && yarn run build:core && yarn run build:cli && node esbuild.node.mjs",
+    "package-node": "yarn run build:ui:prod && yarn run build:core && yarn run build:cli && node esbuild.node.mjs --production",
+    "compile": "yarn run build:ui && yarn run build:core && yarn run build:cli && tsc -p ./",
+    "compile-web": "yarn run build:ui && yarn run build:core && yarn run build:cli && node esbuild.web.mjs",
+    "compile-web-tests": "yarn run build:ui && yarn run build:core && yarn run build:cli && node esbuild.web-test.mjs",
+    "watch": "yarn run build:ui && yarn run build:core && yarn run build:cli && tsc -watch -p ./",
     "watch-web": "node esbuild.web.mjs --watch",
-    "package-web": "yarn run build:ui:prod && yarn run build:core && node esbuild.web.mjs --production",
+    "package-web": "yarn run build:ui:prod && yarn run build:core && yarn run build:cli && node esbuild.web.mjs --production",
     "pretest": "yarn run compile && yarn run lint",
     "lint": "eslint src",
     "lint:commits": "commitlint --from origin/main --to HEAD --verbose",
@@ -114,7 +114,8 @@
     "fixtures:smoke": "node fixtures/smoke.mjs",
     "build:core": "yarn workspace @dhananjay-jsr/mcp-inspector-core build",
     "build:ui": "node scripts/build-ui.mjs",
-    "build:ui:prod": "node scripts/build-ui.mjs --production"
+    "build:ui:prod": "node scripts/build-ui.mjs --production",
+    "build:cli": "tsc -p packages/cli && node esbuild.cli.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",

@@ -11,6 +11,7 @@ src/**
 scripts/**
 
 docs/**
+esbuild.cli.mjs
 esbuild.core.mjs
 esbuild.node.mjs
 .commitlintrc.json
