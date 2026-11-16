@@ -110,7 +110,8 @@
     "test": "vscode-test",
     "test:web": "yarn run compile-web && yarn run compile-web-tests && vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web-test/suite/index.js",
     "package": "vsce package",
-    "release": "semantic-release"
+    "release": "semantic-release",
+    "fixtures:smoke": "node fixtures/smoke.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",
