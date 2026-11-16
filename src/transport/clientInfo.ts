@@ -1,11 +1,7 @@
 import * as vscode from "vscode";
+import type { ClientInfo } from "@dhananjay-jsr/mcp-inspector-core";
 
 const EXTENSION_ID = "DhananjaySenday.mcp--inspector";
-
-export interface ClientInfo {
-  name: string;
-  version: string;
-}
 
 /**
  * Identify the inspector to servers with the installed extension version, so

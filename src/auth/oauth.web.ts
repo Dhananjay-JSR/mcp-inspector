@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
-import type { CallbackResult, OAuthCallback } from "./provider";
-import { SecretStorageOAuthProvider, supportsOAuth } from "./provider";
+import type { CallbackResult, CancellationToken, OAuthCallback } from "@dhananjay-jsr/mcp-inspector-core";
+import { SecretStorageOAuthProvider, supportsOAuth } from "@dhananjay-jsr/mcp-inspector-core";
 
-export type { CallbackResult, OAuthCallback } from "./provider";
+export type { CallbackResult, OAuthCallback } from "@dhananjay-jsr/mcp-inspector-core";
 export { SecretStorageOAuthProvider, supportsOAuth };
 
 const CALLBACK_PATH = "/mcp-oauth-callback";
@@ -154,7 +154,7 @@ export class WebOAuthCallback implements OAuthCallback {
 
   waitForCode(
     expectedState: string | undefined,
-    token?: vscode.CancellationToken,
+    token?: CancellationToken,
   ): Promise<string> {
     activeCallbacks.add(this);
 

@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { MCPClient } from '../transport/MCPTransport';
+import { vscodeNotifier } from '../transport/vscodeNotifier';
+import { clientInfo } from '../transport/clientInfo';
 import type { Tool } from '@dhananjay-jsr/mcp-inspector-core';
 import { normalizeTlsConfig, readTlsConfig, saveTlsConfig } from '../transport/tlsSettings';
 import { buildToolArguments, buildToolFields, parseRawArguments } from '@dhananjay-jsr/mcp-inspector-core';
@@ -1783,7 +1785,7 @@ export class MCPInspectorPanel {
 		try {
 			// Create a new MCP client for this session
 			this._tools.clear();
-			this._mcpClient = new MCPClient(this._secrets);
+			this._mcpClient = new MCPClient(this._secrets, undefined, vscodeNotifier, clientInfo());
 
 			const serverScriptPath = connectionData.command;
 			const scriptArgs = connectionData.args || '';
@@ -1835,7 +1837,7 @@ export class MCPInspectorPanel {
 				await saveTlsConfig(tls);
 			}
 			this._tools.clear();
-			this._mcpClient = new MCPClient(this._secrets, tls);
+			this._mcpClient = new MCPClient(this._secrets, tls, vscodeNotifier, clientInfo());
 
 			const serverUrl = connectionData.serverUrl;
 			const headers: Record<string, string> | undefined =
