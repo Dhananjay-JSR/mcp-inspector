@@ -6,5 +6,19 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p ."
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./transport": {
+      "types": "./dist/transport/index.d.ts",
+      "default": "./dist/transport/index.js"
+    }
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "undici": "^6.29.1"
   }
 }

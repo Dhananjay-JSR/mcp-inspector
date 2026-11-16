@@ -12,8 +12,8 @@ import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { WebOAuthCallback } from "../auth/oauth.web";
 import { SecretStorageOAuthProvider, supportsOAuth } from "@dhananjay-jsr/mcp-inspector-core";
 import { DEFAULT_CLIENT_INFO, describeError, describeOAuthBootstrapFailure, isOAuthDiscoveryFailure, noopNotifier } from "@dhananjay-jsr/mcp-inspector-core";
-import type { TlsConfig } from "./tls";
-import { toTool } from "./toolMapping";
+import type { TlsConfig } from "@dhananjay-jsr/mcp-inspector-core/transport";
+import { toTool } from "@dhananjay-jsr/mcp-inspector-core";
 import { connectWithFallback } from "@dhananjay-jsr/mcp-inspector-core";
 import type {
   ConnectionResult,

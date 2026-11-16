@@ -1,4 +1,5 @@
 import esbuild from "esbuild";
+import { coreSource } from "./esbuild.core.mjs";
 
 const production = process.argv.includes("--production");
 const watch = process.argv.includes("--watch");
@@ -19,6 +20,7 @@ const context = await esbuild.context({
   sourcemap: !production,
   minify: production,
   logLevel: "info",
+  plugins: [coreSource],
 });
 
 if (watch) {

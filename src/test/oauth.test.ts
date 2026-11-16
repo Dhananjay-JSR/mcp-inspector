@@ -6,7 +6,7 @@ import {
   OAuthCallbackServer,
   SecretStorageOAuthProvider,
   supportsOAuth,
-} from "../auth/oauth";
+} from "@dhananjay-jsr/mcp-inspector-core/transport";
 import { WebOAuthCallback, withUsableCallbackRoute } from "../auth/oauth.web";
 
 class FakeSecretStorage implements vscode.SecretStorage {

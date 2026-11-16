@@ -1,5 +1,5 @@
 import * as assert from "assert";
-import { toTool } from "../transport/toolMapping";
+import { toTool } from "@dhananjay-jsr/mcp-inspector-core";
 
 suite("Tool mapping", () => {
 	test("keeps the metadata MCP Apps depends on", () => {

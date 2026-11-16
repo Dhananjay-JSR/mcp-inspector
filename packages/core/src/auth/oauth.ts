@@ -1,8 +1,9 @@
 import * as http from "node:http";
-import type { CallbackResult, CancellationToken, OAuthCallback } from "@dhananjay-jsr/mcp-inspector-core";
-import { SecretStorageOAuthProvider, supportsOAuth } from "@dhananjay-jsr/mcp-inspector-core";
+import type { CancellationToken } from "../ports";
+import type { CallbackResult, OAuthCallback } from "./provider";
+import { SecretStorageOAuthProvider, supportsOAuth } from "./provider";
 
-export type { CallbackResult, OAuthCallback } from "@dhananjay-jsr/mcp-inspector-core";
+export type { CallbackResult, OAuthCallback } from "./provider";
 export { SecretStorageOAuthProvider, supportsOAuth };
 
 const CALLBACK_PATH = "/callback";
