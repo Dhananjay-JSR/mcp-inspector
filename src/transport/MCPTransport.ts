@@ -9,6 +9,8 @@ import type { StreamableHTTPClientTransportOptions } from "@modelcontextprotocol
 import * as vscode from "vscode";
 import { OAuthCallbackServer, SecretStorageOAuthProvider, supportsOAuth } from "../auth/oauth";
 import { describeError, describeOAuthBootstrapFailure, isOAuthDiscoveryFailure } from "./errorHints";
+import { clientInfo } from "./clientInfo";
+import { toTool } from "./toolMapping";
 import { connectWithFallback } from "./remote";
 import { createTlsFetch } from "./tls";
 import type { TlsConfig, TlsFetch } from "./tls";
@@ -16,7 +18,6 @@ import type {
   ConnectionResult,
   HeadersMap,
   IMCPClient,
-  InputSchema,
   Tool,
   ToolResult,
 } from "./types";
@@ -51,7 +52,7 @@ export class MCPClient implements IMCPClient {
     private readonly secrets?: vscode.SecretStorage,
     private readonly tls: TlsConfig = {},
   ) {
-    this.mcp = new Client({ name: "mcp-debugger-vscode-extension", version: "1.0.0" });
+    this.mcp = new Client(clientInfo());
   }
 
   async connectToStdio(scriptPath: string, args = ""): Promise<ConnectionResult> {
@@ -62,14 +63,10 @@ export class MCPClient implements IMCPClient {
         args: argsArray,
       });
 
-      this.mcp.connect(this.transport);
+      await this.mcp.connect(this.transport);
 
       const toolsResult = await this.mcp.listTools();
-      this.tools = toolsResult.tools.map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        input_schema: tool.inputSchema as InputSchema,
-      }));
+      this.tools = toolsResult.tools.map(toTool);
 
       return { success: true, tools: this.tools };
     } catch (error) {
@@ -94,7 +91,7 @@ export class MCPClient implements IMCPClient {
         throw new Error("Server URL must start with http:// or https://");
       }
 
-      this.mcp = new Client({ name: "mcp-debugger-vscode-extension", version: "1.0.0" });
+      this.mcp = new Client(clientInfo());
       const options: SSEClientTransportOptions = { ...(requestOptions(headers) ?? {}) };
       if (authProvider) {
         options.authProvider = authProvider;
@@ -107,12 +104,7 @@ export class MCPClient implements IMCPClient {
       await this.mcp.connect(this.transport);
 
       const toolsResult = await this.mcp.listTools();
-      console.log(toolsResult);
-      this.tools = toolsResult.tools.map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        input_schema: tool.inputSchema as InputSchema,
-      }));
+      this.tools = toolsResult.tools.map(toTool);
 
       vscode.window.showInformationMessage(
         `Connected to MCP server via SSE with ${this.tools.length} tools`,
@@ -154,7 +146,7 @@ export class MCPClient implements IMCPClient {
         throw new Error("Server URL must start with http:// or https://");
       }
 
-      this.mcp = new Client({ name: "mcp-debugger-vscode-extension", version: "1.0.0" });
+      this.mcp = new Client(clientInfo());
       const options: StreamableHTTPClientTransportOptions = { ...(requestOptions(headers) ?? {}) };
       if (authProvider) {
         options.authProvider = authProvider;
@@ -167,11 +159,7 @@ export class MCPClient implements IMCPClient {
       await this.mcp.connect(this.transport);
 
       const toolsResult = await this.mcp.listTools();
-      this.tools = toolsResult.tools.map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        input_schema: tool.inputSchema as InputSchema,
-      }));
+      this.tools = toolsResult.tools.map(toTool);
 
       vscode.window.showInformationMessage(
         `Connected to MCP server via Streamable HTTP with ${this.tools.length} tools`,
