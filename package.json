@@ -108,7 +108,7 @@
     "lint": "eslint src",
     "lint:commits": "commitlint --from origin/main --to HEAD --verbose",
     "test": "vscode-test",
-    "test:web": "yarn run compile-web && yarn run compile-web-tests && vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web-test/suite/index.js",
+    "test:web": "yarn run compile-web && yarn run compile-web-tests && node scripts/test-web.mjs",
     "package": "vsce package",
     "release": "semantic-release",
     "fixtures:smoke": "node fixtures/smoke.mjs",

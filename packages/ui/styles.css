@@ -579,3 +579,115 @@ pre {
 [data-is-web="false"] [data-web-only] {
 	display: none !important;
 }
+
+/* MCP Apps findings and the embedded View. */
+.apps-panel {
+	margin-top: 28px;
+	padding-top: 18px;
+	border-top: 1px solid var(--vscode-panel-border, #8884);
+}
+
+.apps-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.apps-header h2 {
+	margin: 0;
+	font-size: 1rem;
+}
+
+.apps-actions {
+	display: flex;
+	gap: 8px;
+}
+
+.apps-summary {
+	margin: 10px 0 12px;
+	font-weight: 600;
+}
+
+.apps-summary.ok {
+	color: var(--vscode-testing-iconPassed, #3fb950);
+}
+
+.apps-summary.fail {
+	color: var(--vscode-errorForeground, #f85149);
+}
+
+.apps-badge {
+	display: inline-block;
+	margin-left: 6px;
+	padding: 1px 7px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 600;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	vertical-align: middle;
+}
+
+.apps-chip {
+	display: inline-block;
+	margin: 2px 0 2px 6px;
+	padding: 1px 7px;
+	border-radius: 999px;
+	font-size: 11px;
+	background: var(--vscode-button-secondaryBackground, #8883);
+	color: var(--vscode-button-secondaryForeground, inherit);
+}
+
+.finding {
+	margin: 8px 0;
+	padding: 8px 12px;
+	border-left: 3px solid var(--vscode-panel-border, #8886);
+	background: var(--vscode-textBlockQuote-background, #8881);
+}
+
+.finding-error {
+	border-left-color: var(--vscode-errorForeground, #f85149);
+}
+
+.finding-warning {
+	border-left-color: var(--vscode-editorWarning-foreground, #d29922);
+}
+
+.finding-info {
+	border-left-color: var(--vscode-editorInfo-foreground, #58a6ff);
+}
+
+.finding-header {
+	display: flex;
+	gap: 8px;
+	align-items: baseline;
+}
+
+.finding-id {
+	font: 11px ui-monospace, monospace;
+	opacity: 0.75;
+}
+
+.finding-title {
+	font-weight: 600;
+}
+
+.finding-detail,
+.finding-meta {
+	margin: 4px 0 0;
+}
+
+.finding-fix {
+	margin: 4px 0 0;
+	font-size: 12px;
+	opacity: 0.85;
+}
+
+.app-view {
+	margin-top: 14px;
+	border: 1px solid var(--vscode-panel-border, #8884);
+	border-radius: 4px;
+	overflow: hidden;
+	background: transparent;
+}

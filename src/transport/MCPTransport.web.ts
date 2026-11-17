@@ -17,6 +17,17 @@ import { WebOAuthCallback } from "../auth/oauth.web";
 import { SecretStorageOAuthProvider, supportsOAuth } from "@dhananjay-jsr/mcp-inspector-core";
 import { DEFAULT_CLIENT_INFO, describeError, describeOAuthBootstrapFailure, isOAuthDiscoveryFailure, noopNotifier } from "@dhananjay-jsr/mcp-inspector-core";
 import type { TlsConfig } from "@dhananjay-jsr/mcp-inspector-core/transport";
+import {
+  checkLiveSession,
+  createRecording,
+  recordedTransport,
+} from "@dhananjay-jsr/mcp-inspector-core";
+import type {
+  AppsCheckOptions,
+  AppsCheckResult,
+  Recording,
+} from "@dhananjay-jsr/mcp-inspector-core";
+import type { ReadResourceResult } from "@modelcontextprotocol/client";
 import { toTool } from "@dhananjay-jsr/mcp-inspector-core";
 import { connectWithFallback } from "@dhananjay-jsr/mcp-inspector-core";
 import type {
@@ -90,6 +101,7 @@ export class MCPClient implements IMCPClient {
   private mcp: Client;
   private transport: SSEClientTransport | StreamableHTTPClientTransport | null = null;
   private tools: Tool[] = [];
+  private recording: Recording = createRecording();
 
   constructor(
     private readonly secrets?: SecretStore,
@@ -120,7 +132,8 @@ export class MCPClient implements IMCPClient {
         options.authProvider = authProvider;
       }
       this.transport = new SSEClientTransport(new URL(serverUrl), options);
-      await this.mcp.connect(this.transport);
+      this.recording = createRecording();
+      await this.mcp.connect(recordedTransport(this.transport, this.recording));
 
       const toolsResult = await this.mcp.listTools();
       this.tools = toolsResult.tools.map(toTool);
@@ -158,7 +171,8 @@ export class MCPClient implements IMCPClient {
         options.authProvider = authProvider;
       }
       this.transport = new StreamableHTTPClientTransport(new URL(serverUrl), options);
-      await this.mcp.connect(this.transport);
+      this.recording = createRecording();
+      await this.mcp.connect(recordedTransport(this.transport, this.recording));
 
       const toolsResult = await this.mcp.listTools();
       this.tools = toolsResult.tools.map(toTool);
@@ -363,11 +377,29 @@ export class MCPClient implements IMCPClient {
     }
   }
 
+  async checkApps(options: AppsCheckOptions = {}): Promise<AppsCheckResult> {
+    if (!this.transport) {
+      return {
+        recording: this.recording,
+        findings: [],
+        verdict: { ok: false, summary: "Not connected to any transport." },
+        connectError: "Not connected to any transport.",
+      };
+    }
+
+    return checkLiveSession(this.mcp, this.tools, this.recording, options);
+  }
+
+  async readResource(uri: string): Promise<ReadResourceResult> {
+    return this.mcp.readResource({ uri });
+  }
+
   async disconnect(): Promise<void> {
     if (this.transport) {
       await this.mcp.close();
       this.transport = null;
       this.tools = [];
+      this.recording = createRecording();
     }
   }
 }

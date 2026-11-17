@@ -11,6 +11,13 @@ import { uiTemplate } from './uiTemplate.generated';
 const RELAY_BASE_URL = 'https://mcp-relay.dhananjaay.dev';
 const RELAY_REPO_URL = 'https://github.com/Dhananjay-JSR/mcp-inspector-relay';
 
+function uiUriOf(tool: Tool): string | undefined {
+	const meta = tool._meta as
+		| { ui?: { resourceUri?: string; csp?: unknown }; 'ui/resourceUri'?: string }
+		| undefined;
+	return meta?.ui?.resourceUri ?? meta?.['ui/resourceUri'];
+}
+
 export class MCPInspectorPanel {
 	public static currentPanel: MCPInspectorPanel | undefined;
 	private readonly _panel: vscode.WebviewPanel;
@@ -51,6 +58,15 @@ export class MCPInspectorPanel {
                         break;
                     case 'disconnect':
 						await this.handleMCPDisconnect();
+                        break;
+                    case 'checkApps':
+                        await this.handleAppsCheck();
+                        break;
+                    case 'renderApps':
+                        await this.handleRenderApps(message.data?.tool);
+                        break;
+                    case 'viewRequest':
+                        await this.handleViewRequest(message.data);
                         break;
                     case 'executeTool':
                         await this.handleToolExecution(message.data);
@@ -189,6 +205,7 @@ export class MCPInspectorPanel {
 						tools: this.rememberTools(result.tools)
 					}
 				});
+				void this.handleAppsCheck();
 			} else {
 				// Send error message back to webview
 				this._panel.webview.postMessage({
@@ -254,6 +271,7 @@ export class MCPInspectorPanel {
 						transport: result.transport
 					}
 				});
+				void this.handleAppsCheck();
 			} else {
 				this._panel.webview.postMessage({
 					command: 'connectionStatus',
@@ -368,8 +386,161 @@ export class MCPInspectorPanel {
 					disconnected: true
 				}
 			});
+			this._panel.webview.postMessage({ command: 'appsFindings', data: null });
+			this._panel.webview.postMessage({ command: 'appsRender', data: null });
 		}
     }
+
+	private async handleAppsCheck() {
+		if (!this._mcpClient) {
+			return;
+		}
+
+		this._panel.webview.postMessage({
+			command: 'appsStatus',
+			data: { phase: 'Checking MCP Apps…' },
+		});
+
+		try {
+			const result = await this._mcpClient.checkApps();
+			this._panel.webview.postMessage({ command: 'appsFindings', data: result });
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			this._panel.webview.postMessage({
+				command: 'appsFindings',
+				data: {
+					findings: [],
+					verdict: { ok: false, summary: `Could not check MCP Apps: ${message}` },
+					connectError: message,
+				},
+			});
+		}
+	}
+
+	private async handleRenderApps(toolName?: string) {
+		if (!this._mcpClient) {
+			return;
+		}
+
+		const tools = [...this._tools.values()];
+		const tool = toolName
+			? this._tools.get(toolName)
+			: tools.find(candidate => uiUriOf(candidate));
+		const uri = tool ? uiUriOf(tool) : undefined;
+
+		if (!tool || !uri) {
+			this._panel.webview.postMessage({
+				command: 'appsStatus',
+				data: { phase: 'No tool declares a UI resource.', failed: true },
+			});
+			return;
+		}
+
+		this._panel.webview.postMessage({
+			command: 'appsStatus',
+			data: { phase: `Rendering ${tool.name}…` },
+		});
+
+		try {
+			const resource = await this._mcpClient.readResource(uri);
+			const content = resource.contents?.[0] as
+				| { text?: string; blob?: string; _meta?: { ui?: { csp?: unknown } } }
+				| undefined;
+
+			let html = content?.text;
+			if (!html && content?.blob) {
+				const bytes = Uint8Array.from(atob(content.blob), char => char.charCodeAt(0));
+				html = new TextDecoder().decode(bytes);
+			}
+			if (!html) {
+				throw new Error('The UI resource returned no HTML.');
+			}
+
+			const call = await this._mcpClient.executeTool(tool.name, {});
+			const result = call.result ?? {
+				content: call.error ? [{ type: 'text', text: call.error }] : [],
+				isError: !call.success,
+			};
+			const meta = tool._meta as { ui?: { csp?: unknown } } | undefined;
+			const csp = meta?.ui?.csp ?? content?._meta?.ui?.csp;
+
+			this._panel.webview.postMessage({
+				command: 'appsRender',
+				data: {
+					tool: tool.name,
+					uri,
+					html,
+					csp,
+					args: {},
+					result,
+					success: call.success,
+					error: call.error,
+				},
+			});
+		} catch (error) {
+			this._panel.webview.postMessage({
+				command: 'appsStatus',
+				data: {
+					phase: `Render failed: ${error instanceof Error ? error.message : String(error)}`,
+					failed: true,
+				},
+			});
+		}
+	}
+
+	private async handleViewRequest(data: { id?: number; method?: string; params?: any }) {
+		const id = data?.id;
+		if (id === undefined || !this._mcpClient) {
+			return;
+		}
+
+		try {
+			if (data.method === 'tools/call') {
+				const call = await this._mcpClient.executeTool(
+					data.params?.name,
+					data.params?.arguments ?? {},
+				);
+				const result = call.success
+					? call.result
+					: { content: [{ type: 'text', text: call.error ?? 'Tool failed' }], isError: true };
+				this._panel.webview.postMessage({
+					command: 'viewResponse',
+					data: { id, result },
+				});
+				return;
+			}
+
+			if (data.method === 'resources/read') {
+				const result = await this._mcpClient.readResource(data.params?.uri);
+				this._panel.webview.postMessage({
+					command: 'viewResponse',
+					data: { id, result },
+				});
+				return;
+			}
+
+			if (data.method === 'ping') {
+				this._panel.webview.postMessage({
+					command: 'viewResponse',
+					data: { id, result: {} },
+				});
+				return;
+			}
+
+			this._panel.webview.postMessage({
+				command: 'viewResponse',
+				data: { id, error: { code: -32601, message: `Unsupported host call: ${data.method}` } },
+			});
+		} catch (error) {
+			this._panel.webview.postMessage({
+				command: 'viewResponse',
+				data: {
+					id,
+					error: { code: -32603, message: error instanceof Error ? error.message : String(error) },
+				},
+			});
+		}
+	}
 
 	private async handleOpenSettings(kind?: string) {
 		const query = kind === 'tls'

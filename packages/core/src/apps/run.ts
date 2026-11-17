@@ -3,6 +3,7 @@ import type { ClientCapabilities, Transport } from "@modelcontextprotocol/client
 import { DEFAULT_CLIENT_INFO } from "../ports";
 import { createRecording, recordedTransport } from "../recorder";
 import type { Recording } from "../recorder";
+import type { Tool } from "../types";
 import { APP_MIME_TYPE, UI_EXTENSION, appChecks, toolsFrom, uiTools } from "./checks";
 import type {
   AppsCheckOptions,
@@ -107,6 +108,48 @@ export function serverIdentity(recording: Recording): ServerIdentity | undefined
     }
   }
   return undefined;
+}
+
+/**
+ * Run the preflight requests on a client that is already connected. The
+ * transport must have been wrapped with `recordedTransport` at connect time.
+ */
+export async function checkLiveSession(
+  client: Client,
+  tools: Tool[],
+  recording: Recording,
+  options: AppsCheckOptions = {},
+): Promise<AppsCheckResult> {
+  const uris = new Set<string>();
+
+  for (const tool of tools) {
+    const meta = tool._meta as
+      | { ui?: { resourceUri?: string }; "ui/resourceUri"?: string }
+      | undefined;
+    const uri = meta?.ui?.resourceUri ?? meta?.["ui/resourceUri"];
+    if (typeof uri === "string") {
+      uris.add(uri);
+    }
+  }
+
+  for (const uri of uris) {
+    await ignoreFailure(client.readResource({ uri }));
+  }
+
+  await ignoreFailure(client.ping());
+
+  if (options.callTools) {
+    for (const tool of tools) {
+      await ignoreFailure(
+        client.callTool({
+          name: tool.name,
+          arguments: options.toolArguments?.[tool.name] ?? {},
+        }),
+      );
+    }
+  }
+
+  return analyze(recording);
 }
 
 export function analyze(

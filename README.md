@@ -26,6 +26,7 @@ separate inspector process required.
 - Add custom headers per server, including `Authorization: Bearer …` tokens
 - Pick a server script with the native file dialog, or type a command such as `npx`
 - Browse every tool a server exposes, including its input schema
+- See MCP Apps badges and preflight findings, and render a View in the inspector
 - Execute tools with typed schema fields (text, number, boolean, enum, JSON), a raw-JSON mode, live progress, elapsed time, pretty-printed JSON results, and one-click copy
 - Diagnose failures with classified error cards — endpoint/command, DNS, TLS, CORS, auth, network, protocol, or tool — with **Retry**, **Open settings**, **Copy curl**, and **Use relay** where they apply
 - Launch from the activity-bar view or the Command Palette, and inspect in a full panel
@@ -83,6 +84,9 @@ for release notes.
 5. **Remote, desktop only:** if the server uses a private CA or mutual TLS,
    open the **TLS** section under **Headers** and use **Browse…** for the CA
    bundle, client certificate, and key. The paths are saved automatically.
+6. After connecting, the **MCP Apps** section runs the preflight checks. Tools
+   that declare a View get an **MCP App** badge and a **Render** button; the
+   View opens in the panel with its findings beside it.
 6. Connect, choose a tool, fill in the fields, and run it.
 
 Remote endpoints are tried as Streamable HTTP first, then SSE. A URL ending in
