@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 /**
@@ -19,5 +20,33 @@ export const coreSource = {
       { filter: /^@dhananjay-jsr\/mcp-inspector-core\/transport$/ },
       () => ({ path: path.resolve("packages/core/src/transport/index.ts") }),
     );
+  },
+};
+
+/**
+ * The SDK v2 browser shim initializes a schema base URI from
+ * `self.location.origin`, which is undefined in the VS Code web extension
+ * worker. Fall back to the library's own constant base URI instead.
+ */
+export const patchCfworkerBaseUri = {
+  name: "patch-cfworker-base-uri",
+  setup(build) {
+    build.onLoad({ filter: /cfWorkerProvider-.*\.mjs$/ }, async (args) => {
+      const source = await readFile(args.path, "utf8");
+      const before =
+        'let initialBaseURI = typeof self !== "undefined" && self.location && self.location.origin !== "null" ? new URL(self.location.origin + self.location.pathname + location.search) : new URL("https://github.com/cfworker");';
+      if (!source.includes(before)) {
+        throw new Error(
+          "cfworker base URI changed; update patchCfworkerBaseUri in esbuild.core.mjs",
+        );
+      }
+      return {
+        contents: source.replace(
+          before,
+          'let initialBaseURI = new URL("https://github.com/cfworker");',
+        ),
+        loader: "js",
+      };
+    });
   },
 };

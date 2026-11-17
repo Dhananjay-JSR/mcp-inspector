@@ -53,7 +53,7 @@ function reply(message) {
 		return {
 			jsonrpc: "2.0",
 			id: message.id,
-			error: { code: -32603, message: String(error?.message ?? error) },
+			error: { code: -32603, message: "Internal error" },
 		};
 	}
 }

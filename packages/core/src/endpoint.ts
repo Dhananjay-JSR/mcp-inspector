@@ -15,7 +15,11 @@ export function relayUrlFor(
   upstream: string,
 ): string {
   const path = transport === "sse" ? "/sse" : "/mcp";
-  return `${relayBase.replace(/\/+$/, "")}${path}?url=${encodeURIComponent(upstream)}`;
+  let base = relayBase;
+  while (base.endsWith("/")) {
+    base = base.slice(0, -1);
+  }
+  return `${base}${path}?url=${encodeURIComponent(upstream)}`;
 }
 
 export function transportLabel(transport: RemoteTransport): string {

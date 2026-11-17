@@ -37,10 +37,10 @@ function show(dir, msg) {
 }
 
 let nextId = 1;
-const pending = {};
+const pending = new Map();
 function send(msg) { show("VIEW → HOST", msg); window.parent.postMessage(msg, "*"); }
 function request(method, params) {
-  return new Promise((resolve) => { const id = nextId++; pending[id] = resolve; names[id] = method; send({ jsonrpc: "2.0", id, method, params }); });
+  return new Promise((resolve) => { const id = nextId++; pending.set(id, resolve); names[id] = method; send({ jsonrpc: "2.0", id, method, params }); });
 }
 function notify(method, params) { send({ jsonrpc: "2.0", method, params }); }
 let lastHeight = 0;
@@ -57,8 +57,9 @@ window.addEventListener("message", (e) => {
   if (!msg || msg.jsonrpc !== "2.0") return;
   show("HOST → VIEW", msg);
 
-  if (msg.id !== undefined && pending[msg.id]) {           // response to one of our requests
-    pending[msg.id](msg.result); delete pending[msg.id];
+  const resolve = msg.id !== undefined ? pending.get(msg.id) : undefined;
+  if (typeof resolve === "function") {                     // response to one of our requests
+    pending.delete(msg.id); resolve(msg.result);
   } else if (msg.method === "ui/notifications/tool-input") {
     $("status").textContent = "tool called with " + JSON.stringify(msg.params.arguments) + ", waiting for result…";
   } else if (msg.method === "ui/notifications/tool-result") {
