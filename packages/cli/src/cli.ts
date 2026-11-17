@@ -14,6 +14,8 @@ import {
 } from "./args";
 import type { FlagValue } from "./args";
 import { bodyText, checkText, toolsText } from "./format";
+import { render } from "./render";
+import { resolve } from "node:path";
 import {
   createTransport,
   hasInitialize,
@@ -54,6 +56,13 @@ const HELP = {
         'mcp-inspector apps check <server> [--call-tools] [--discover] [--no-ui-capability] [--ndjson]',
       description:
         "Run APP001-APP015 against one server. Compares both UI-capability handshakes by default.",
+    },
+    {
+      name: "apps render",
+      usage:
+        "mcp-inspector apps render <server> [--tool <name>] [--args <json>] [--out <dir>]",
+      description:
+        "Render a View in a headless browser, write a screenshot and run VIEW001-VIEW010.",
     },
     {
       name: "tools list",
@@ -121,6 +130,27 @@ const SCHEMAS: Record<string, unknown> = {
         },
       },
       findings: { type: "array", items: FINDING_SCHEMA },
+    },
+  },
+  "apps render": {
+    schema: "mcp-inspector/apps-render@1",
+    type: "object",
+    required: ["schema", "verdict", "findings", "files"],
+    properties: {
+      schema: { const: "mcp-inspector/apps-render@1" },
+      server: { type: "object" },
+      verdict: { type: "object" },
+      findings: { type: "array", items: FINDING_SCHEMA },
+      height: { type: "number" },
+      files: {
+        type: "object",
+        required: ["screenshot", "timeline", "findings"],
+        properties: {
+          screenshot: { type: "string" },
+          timeline: { type: "string" },
+          findings: { type: "string" },
+        },
+      },
     },
   },
   "tools list": {
@@ -191,6 +221,8 @@ async function dispatch(argv: string[], io: CliIO): Promise<number> {
   switch (`${group} ${action}`) {
     case "apps check":
       return appsCheck(server, flags, io);
+    case "apps render":
+      return appsRender(server, flags, io);
     case "tools list":
       return toolsList(server, flags, io);
     case "tools call":
@@ -251,7 +283,49 @@ async function appsCheck(
       verdict: result.verdict,
       findings: result.findings,
     },
-    checkText(result),
+    checkText(result, "MCP Inspector: apps render"),
+  );
+
+  return code;
+}
+
+async function appsRender(
+  server: string | undefined,
+  flags: Record<string, FlagValue>,
+  io: CliIO,
+): Promise<number> {
+  const spec = parseServerSpec(server, flagStrings(flags, "header"));
+  const args = parseJsonObject(flagStringFlag(flags, "args") ?? "{}");
+  const outDir = resolve(flagStringFlag(flags, "out") ?? "mcp-inspector-render");
+  const tool = flagStringFlag(flags, "tool");
+
+  const result = await render({ spec, tool, args, outDir });
+  const code = result.findings.some((finding) => finding.severity === "error")
+    ? 1
+    : 0;
+
+  const text = [
+    checkText(result, "MCP Inspector: apps render"),
+    "",
+    `height: ${result.height}px`,
+    "files:",
+    `  screenshot: ${result.files.screenshot}`,
+    `  timeline:   ${result.files.timeline}`,
+    `  findings:   ${result.files.findings}`,
+  ].join("\n");
+
+  print(
+    io,
+    flags,
+    {
+      schema: "mcp-inspector/apps-render@1",
+      server: result.server ?? {},
+      verdict: result.verdict,
+      findings: result.findings,
+      height: result.height,
+      files: result.files,
+    },
+    text,
   );
 
   return code;
