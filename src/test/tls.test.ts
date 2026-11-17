@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as https from "https";
 import type { AddressInfo } from "net";
 import * as path from "path";
-import { createTlsFetch } from "../transport/tls";
+import { createTlsFetch } from "@dhananjay-jsr/mcp-inspector-core/transport";
 
 const fixtures = path.resolve(__dirname, "../../src/test/fixtures/tls");
 const fixture = (name: string) => path.join(fixtures, name);

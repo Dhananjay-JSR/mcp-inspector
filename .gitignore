@@ -4,3 +4,6 @@ node_modules
 .vscode-test/
 .vscode-test-web/
 *.vsix
+fixtures/**/flow.log
+src/views/uiTemplate.generated.ts
+dist/ui/

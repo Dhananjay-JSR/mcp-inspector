@@ -1,31 +1,61 @@
 #!/usr/bin/env node
 // HTTPS MCP server used by the TLS integration tests. It serves one `echo`
 // tool over Streamable HTTP and prints the chosen port so the test can connect.
+// The JSON-RPC handler is inline so the fixture has no dependency on the SDK.
 const fs = require("node:fs");
 const https = require("node:https");
-const { McpServer } = require("@modelcontextprotocol/sdk/server/mcp.js");
-const { StreamableHTTPServerTransport } = require("@modelcontextprotocol/sdk/server/streamableHttp.js");
-const { z } = require("zod");
 
 function option(name) {
 	const index = process.argv.indexOf(`--${name}`);
 	return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
-function createMcpServer() {
-	const server = new McpServer({ name: "tls-echo-server", version: "1.0.0" });
-	server.tool("echo", "Returns the text it was given", { text: z.string() }, async ({ text }) => ({
-		content: [{ type: "text", text }],
-	}));
-	return server;
+function handle(method, params) {
+	switch (method) {
+		case "initialize":
+			return {
+				protocolVersion: params?.protocolVersion ?? "2025-06-18",
+				capabilities: { tools: {} },
+				serverInfo: { name: "tls-echo-server", version: "1.0.0" },
+			};
+		case "tools/list":
+			return {
+				tools: [
+					{
+						name: "echo",
+						description: "Returns the text it was given",
+						inputSchema: {
+							type: "object",
+							properties: { text: { type: "string" } },
+							required: ["text"],
+						},
+					},
+				],
+			};
+		case "tools/call":
+			if (params?.name !== "echo") {
+				throw new Error(`Unknown tool: ${params?.name}`);
+			}
+			return {
+				content: [{ type: "text", text: String(params?.arguments?.text ?? "") }],
+			};
+		case "ping":
+			return {};
+		default:
+			throw new Error(`Method not found: ${method}`);
+	}
 }
 
-async function readBody(request) {
-	let body = "";
-	for await (const chunk of request) {
-		body += chunk;
+function reply(message) {
+	try {
+		return { jsonrpc: "2.0", id: message.id, result: handle(message.method, message.params) };
+	} catch (error) {
+		return {
+			jsonrpc: "2.0",
+			id: message.id,
+			error: { code: -32603, message: "Internal error" },
+		};
 	}
-	return body ? JSON.parse(body) : undefined;
 }
 
 const tls = {
@@ -40,30 +70,36 @@ if (option("ca")) {
 }
 
 const httpServer = https.createServer(tls, (request, response) => {
-	(async () => {
-		if (request.method !== "POST") {
-			// Stateless mode has no standalone SSE stream to resume.
-			response.writeHead(405).end();
+	if (request.method !== "POST") {
+		// Stateless mode has no standalone SSE stream to resume.
+		response.writeHead(405).end();
+		return;
+	}
+
+	let body = "";
+	request.on("data", (chunk) => {
+		body += chunk;
+	});
+	request.on("end", () => {
+		let message;
+		try {
+			message = body ? JSON.parse(body) : undefined;
+		} catch {
+			response.writeHead(400).end();
 			return;
 		}
 
-		const parsedBody = await readBody(request);
-		const server = createMcpServer();
-		const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-
-		response.on("close", () => {
-			void transport.close();
-			void server.close();
-		});
-
-		await server.connect(transport);
-		await transport.handleRequest(request, response, parsedBody);
-	})().catch((error) => {
-		process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`);
-		if (!response.headersSent) {
-			response.writeHead(500);
+		if (!message || message.id === undefined) {
+			response.writeHead(202).end();
+			return;
 		}
-		response.end();
+
+		const text = JSON.stringify(reply(message));
+		response.writeHead(200, {
+			"Content-Type": "application/json",
+			"Content-Length": Buffer.byteLength(text),
+		});
+		response.end(text);
 	});
 });
 

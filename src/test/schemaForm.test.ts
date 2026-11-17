@@ -3,7 +3,7 @@ import {
   buildToolArguments,
   buildToolFields,
   parseRawArguments,
-} from "../tools/schemaForm";
+} from "@dhananjay-jsr/mcp-inspector-core";
 
 suite("Schema forms", () => {
   suite("field mapping", () => {

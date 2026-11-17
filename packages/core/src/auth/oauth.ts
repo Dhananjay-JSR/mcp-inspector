@@ -1,6 +1,6 @@
 import * as http from "node:http";
-import * as vscode from "vscode";
-import type { OAuthCallback } from "./provider";
+import type { CancellationToken } from "../ports";
+import type { CallbackResult, OAuthCallback } from "./provider";
 import { SecretStorageOAuthProvider, supportsOAuth } from "./provider";
 
 export type { CallbackResult, OAuthCallback } from "./provider";
@@ -29,7 +29,7 @@ h1{font-size:1.1rem}</style></head>
 export class OAuthCallbackServer implements OAuthCallback {
   private server: http.Server | null = null;
   private callbackUrl = "";
-  private result: import("./provider").CallbackResult | null = null;
+  private result: CallbackResult | null = null;
   private waiter: { resolve: () => void } | null = null;
   private timer: NodeJS.Timeout | null = null;
 
@@ -60,7 +60,7 @@ export class OAuthCallbackServer implements OAuthCallback {
 
   waitForCode(
     expectedState: string | undefined,
-    token?: vscode.CancellationToken,
+    token?: CancellationToken,
   ): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       const cleanup = () => {
@@ -71,7 +71,7 @@ export class OAuthCallbackServer implements OAuthCallback {
         this.waiter = null;
         cancellation?.dispose();
       };
-      const finish = (result: import("./provider").CallbackResult) => {
+      const finish = (result: CallbackResult) => {
         cleanup();
         if (result.error) {
           reject(new Error(`Authorization failed: ${result.error}`));
@@ -98,7 +98,7 @@ export class OAuthCallbackServer implements OAuthCallback {
         reject(new Error("Sign-in timed out after 5 minutes"));
       }, SIGN_IN_TIMEOUT_MS);
 
-      this.waiter = { resolve: () => finish(this.result as import("./provider").CallbackResult) };
+      this.waiter = { resolve: () => finish(this.result as CallbackResult) };
 
       if (this.result) {
         finish(this.result);

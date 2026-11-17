@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font: 14px system-ui, sans-serif; margin: 12px; }
+  #dice { font-size: 48px; font-weight: bold; }
+  button { margin: 8px 8px 8px 0; }
+  #log { font: 12px ui-monospace, monospace; background: #8881; padding: 4px 8px; height: 260px; overflow: auto; /* fixed height: log growth must not change page height, or size-changed would loop */ }
+  #log summary { cursor: pointer; padding: 2px 0; }
+  #log pre { margin: 2px 0 6px 16px; white-space: pre-wrap; word-break: break-all; }
+  .out summary { color: #e8a33d; } .in summary { color: #5aa9e6; }
+</style>
+</head>
+<body>
+  <div id="dice">…</div>
+  <div id="status">waiting for host…</div>
+  <button id="again">🎲 Roll again (View → tools/call)</button>
+  <button id="tell">💬 Tell the chat (View → ui/message)</button>
+  <div id="log"></div>
+
+<script>
+// No SDK: the View side of MCP Apps is just JSON-RPC 2.0 over window.postMessage.
+const $ = (id) => document.getElementById(id);
+const names = {}; // request id → method, so responses can be labelled
+const short = (_k, v) => (typeof v === "string" && v.length > 80 ? v.slice(0, 80) + `… (${v.length} chars)` : v);
+function show(dir, msg) {
+  const what = msg.method ?? `${msg.error ? "error" : "result"} of ${names[msg.id] ?? "request"}`;
+  const row = document.createElement("details");
+  row.className = dir.startsWith("VIEW") ? "out" : "in";
+  row.innerHTML = "<summary></summary><pre></pre>";
+  row.firstChild.textContent = `${dir}  ${what}${msg.id !== undefined ? "  #" + msg.id : ""}${msg.params?.height ? "  (" + msg.params.height + "px)" : ""}`;
+  row.lastChild.textContent = JSON.stringify(msg, short, 2);
+  $("log").append(row);
+  $("log").scrollTop = $("log").scrollHeight;
+  queueMicrotask(resize);
+}
+
+let nextId = 1;
+const pending = new Map();
+function send(msg) { show("VIEW → HOST", msg); window.parent.postMessage(msg, "*"); }
+function request(method, params) {
+  return new Promise((resolve) => { const id = nextId++; pending.set(id, resolve); names[id] = method; send({ jsonrpc: "2.0", id, method, params }); });
+}
+function notify(method, params) { send({ jsonrpc: "2.0", method, params }); }
+let lastHeight = 0;
+// Only report real changes; otherwise logging the size-changed message would trigger another size-changed forever.
+function resize() { const h = document.documentElement.scrollHeight; if (h !== lastHeight) { lastHeight = h; notify("ui/notifications/size-changed", { height: h }); } }
+
+function render(result) {
+  const { value, sides } = result.structuredContent ?? {};
+  $("dice").textContent = value ? "🎲 " + value + " / " + sides : "?";
+}
+
+window.addEventListener("message", (e) => {
+  const msg = e.data;
+  if (!msg || msg.jsonrpc !== "2.0") return;
+  show("HOST → VIEW", msg);
+
+  const resolve = msg.id !== undefined ? pending.get(msg.id) : undefined;
+  if (typeof resolve === "function") {                     // response to one of our requests
+    pending.delete(msg.id); resolve(msg.result);
+  } else if (msg.method === "ui/notifications/tool-input") {
+    $("status").textContent = "tool called with " + JSON.stringify(msg.params.arguments) + ", waiting for result…";
+  } else if (msg.method === "ui/notifications/tool-result") {
+    $("status").textContent = "result arrived (from the model's tools/call)";
+    render(msg.params);
+  } else if (msg.id !== undefined) {                       // request from host (ping, ui/resource-teardown): ack it
+    send({ jsonrpc: "2.0", id: msg.id, result: {} });
+  }
+});
+
+$("again").onclick = async () => {
+  // Host proxies this to the MCP server: View → Host → Server → Host → View
+  const result = await request("tools/call", { name: "roll_dice", arguments: { sides: 6 } });
+  $("status").textContent = "result arrived (from the View's own tools/call)";
+  render(result);
+};
+
+$("tell").onclick = () => request("ui/message", {
+  role: "user",
+  content: [{ type: "text", text: "The dice UI shows: " + $("dice").textContent }],
+});
+
+// The handshake. Same shape as MCP initialize, but the View is the "client" and the host is the "server".
+(async () => {
+  const init = await request("ui/initialize", {
+    protocolVersion: "2026-01-26",
+    appInfo: { name: "dice-view", version: "1.0.0" },
+    appCapabilities: {},
+  });
+  if (init?.hostContext?.theme) document.documentElement.style.colorScheme = init.hostContext.theme;
+  notify("ui/notifications/initialized", {});
+  $("status").textContent = "initialized with " + (init?.hostInfo?.name ?? "host") + ", waiting for tool-input…";
+})();
+</script>
+</body>
+</html>

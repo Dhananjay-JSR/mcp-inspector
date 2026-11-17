@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src {{CSP_SOURCE}} data:; style-src {{CSP_SOURCE}} 'unsafe-inline'; script-src {{CSP_SOURCE}} 'unsafe-inline'; font-src {{CSP_SOURCE}};">
+	<title>MCP Inspector</title>
+	<link rel="stylesheet" href="{{STYLE_URI}}">
+</head>
+<body data-is-web="{{IS_WEB}}" data-relay-base="{{RELAY_BASE}}">
+	<div class="container">
+		<header class="page-header">
+			<h1>MCP Inspector</h1>
+			<p class="page-subtitle">Connect to an MCP server, inspect its tools, and call them with your own arguments.</p>
+		</header>
+		<div class="form-group">
+			<label for="transportType">Server type</label>
+			<select id="transportType" onchange="handleTransportChange()">
+				<option value="stdio">Local (STDIO)</option>
+				<option value="remote">Remote (URL)</option>
+			</select>
+		</div>
+
+		<!-- STDIO Section -->
+		<div id="stdioSection" class="transport-section">
+			<div class="web-note" data-web-only>STDIO is not available in VS Code for the Web. Use the desktop app or Codespaces, or connect to a remote server over SSE or Streamable HTTP.</div>
+			<div class="form-group">
+				<label for="command">Command</label>
+				<div class="input-with-button">
+					<input type="text" id="command" placeholder="Path to the server script, for example ./server.js">
+					<button type="button" id="browseCommand" onclick="pickCommand()" data-desktop-only>Browse…</button>
+				</div>
+				<p class="hint">A script path, or a command already on your <code>PATH</code> such as <code>npx</code>.</p>
+			</div>
+			<div class="form-group">
+				<label for="scriptArgs">Arguments</label>
+				<input type="text" id="scriptArgs" placeholder="Optional, for example --port 3001">
+			</div>
+		</div>
+
+		<!-- Remote Section -->
+		<div id="remoteSection" class="transport-section">
+			<div class="form-group">
+				<label for="serverUrl">Server URL</label>
+				<input type="text" id="serverUrl" placeholder="https://example.com/mcp">
+				<p class="hint">The transport is detected automatically: Streamable HTTP first, SSE for <code>/sse</code> endpoints.</p>
+			</div>
+			<div class="form-group">
+				<label for="authMode">Authentication</label>
+				<select id="authMode" onchange="handleAuthModeChange()">
+					<option value="oauth">Automatic (OAuth 2.0 sign-in)</option>
+					<option value="static">Static header / token</option>
+				</select>
+				<p class="hint" id="authHint">OAuth 2.0 authorization code flow with PKCE (RFC 6749). The inspector opens a browser only when the server advertises OAuth metadata; a plain 401 shows an authentication error instead.</p>
+			</div>
+			<div class="form-group">
+				<label>Headers</label>
+				<div id="headersList"></div>
+				<button type="button" class="add-header-btn" onclick="addHeader()">+ Add header</button>
+				<p class="hint">Sent with every request, for example <code>Authorization: Bearer &lt;token&gt;</code>.</p>
+			</div>
+			<div class="form-group tls-group" data-desktop-only>
+				<label>TLS <span class="tls-badge">optional · desktop</span></label>
+				<p class="hint">For servers with a private CA or mutual TLS. Paths are saved to settings; file contents stay on this machine.</p>
+				<div class="tls-row">
+					<label for="tlsCaFile">Certificate authority (CA)</label>
+					<div class="input-with-button">
+						<input type="text" id="tlsCaFile" onchange="tlsChanged()" placeholder="/path/to/ca.pem" spellcheck="false">
+						<button type="button" onclick="pickTlsFile('ca')">Browse…</button>
+						<button type="button" class="clear-btn" title="Clear CA bundle" onclick="clearTlsFile('ca')">✕</button>
+					</div>
+				</div>
+				<div class="tls-row">
+					<label for="tlsClientCertFile">Client certificate</label>
+					<div class="input-with-button">
+						<input type="text" id="tlsClientCertFile" onchange="tlsChanged()" placeholder="/path/to/client.pem" spellcheck="false">
+						<button type="button" onclick="pickTlsFile('cert')">Browse…</button>
+						<button type="button" class="clear-btn" title="Clear client certificate" onclick="clearTlsFile('cert')">✕</button>
+					</div>
+				</div>
+				<div class="tls-row">
+					<label for="tlsClientKeyFile">Client private key</label>
+					<div class="input-with-button">
+						<input type="text" id="tlsClientKeyFile" onchange="tlsChanged()" placeholder="/path/to/client-key.pem" spellcheck="false">
+						<button type="button" onclick="pickTlsFile('key')">Browse…</button>
+						<button type="button" class="clear-btn" title="Clear client key" onclick="clearTlsFile('key')">✕</button>
+					</div>
+				</div>
+				<p class="hint">The client certificate and key must be set together.</p>
+			</div>
+		</div>
+
+		<div class="button-row">
+			<button id="connectButton" onclick="connect()">
+				<span id="connectButtonText">Connect</span>
+			</button>
+		</div>
+
+		<div id="statusPanel" class="status">
+			<span id="statusIndicator" class="status-indicator status-disconnected"></span>
+			<div>
+				<div id="status" class="status-text">Not connected</div>
+				<details id="statusDetails" class="status-details" hidden>
+					<summary>Technical details</summary>
+					<pre id="statusDetailsText"></pre>
+				</details>
+			</div>
+		</div>
+
+		<div id="errorCard" class="error-card" role="alert" hidden>
+			<div class="error-card-header">
+				<span id="errorCardTitle" class="error-card-title"></span>
+				<details class="error-card-details">
+					<summary>Details</summary>
+					<pre id="errorCardDetails"></pre>
+				</details>
+			</div>
+			<p id="errorCardMessage" class="error-card-message"></p>
+			<p id="relayNote" class="callout-privacy" hidden>
+				The relay (<code>{{RELAY_HOST}}</code>) forwards the request for you and does not log requests, headers, or tokens.
+				<a href="#" onclick="openRelayRepo(); return false;">Source on GitHub</a>
+			</p>
+			<div class="error-card-actions">
+				<button id="retryErrorButton" type="button" onclick="retryConnection()">Retry</button>
+				<button id="settingsErrorButton" type="button" class="secondary" onclick="openErrorSettings()" hidden>Open settings</button>
+				<button id="curlErrorButton" type="button" class="secondary" onclick="copyErrorCurl()" hidden>Copy curl</button>
+				<button id="relayErrorButton" type="button" class="secondary" onclick="connectViaRelay()" hidden>Use relay</button>
+				<button id="dismissErrorButton" type="button" class="secondary" onclick="hideErrorCard()">Dismiss</button>
+			</div>
+		</div>
+
+		<div id="toolsContainer" class="tools-container">
+			<div class="tools-header">
+				<h2>Available tools</h2>
+				<span id="toolCount" class="tool-count"></span>
+			</div>
+			<div id="toolsList"></div>
+		</div>
+	</div>
+
+	<!-- Tool Execution Modal -->
+	<div id="toolModal" class="modal">
+		<div class="modal-content">
+			<span class="close" onclick="closeModal()">&times;</span>
+			<h3 id="modalTitle">Execute Tool</h3>
+			<div class="modal-body">
+				<form id="toolForm">
+					<div class="tool-mode">
+						<label class="tool-mode-label">
+							<input type="checkbox" id="rawMode" onchange="toggleRawMode()">
+							Raw JSON
+						</label>
+					</div>
+					<div id="toolErrors" class="tool-errors" role="alert" hidden></div>
+					<div id="toolFields"></div>
+					<div id="rawArgsGroup" class="form-group" hidden>
+						<label for="rawArgs">Arguments</label>
+						<textarea id="rawArgs" class="raw-args" rows="10" spellcheck="false" placeholder="{}"></textarea>
+						<span class="field-hint">A JSON object sent as-is. Required fields and enums are still checked.</span>
+					</div>
+					<div class="modal-buttons">
+						<button type="button" onclick="closeModal()">Cancel</button>
+						<button type="submit" id="executeButton">Execute</button>
+					</div>
+				</form>
+
+				<div id="toolErrorCard" class="error-card" role="alert" hidden>
+					<div class="error-card-header">
+						<span id="toolErrorTitle" class="error-card-title"></span>
+						<details class="error-card-details">
+							<summary>Details</summary>
+							<pre id="toolErrorDetails"></pre>
+						</details>
+					</div>
+					<p id="toolErrorMessage" class="error-card-message"></p>
+					<div class="error-card-actions">
+						<button id="retryToolButton" type="button" onclick="retryTool()">Retry</button>
+						<button type="button" class="secondary" onclick="hideToolError()">Dismiss</button>
+					</div>
+				</div>
+
+				<div id="responseViewer" class="response-viewer">
+					<div class="response-toolbar">
+						<div id="responseHeader" class="response-header"></div>
+						<button type="button" id="copyButton" class="copy-button" onclick="copyResult()">Copy</button>
+					</div>
+					<pre id="responseContent"></pre>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script src="{{APP_URI}}"></script>
+</body>
+</html>

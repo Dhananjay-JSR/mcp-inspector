@@ -1,12 +1,12 @@
 import * as assert from "assert";
 import * as http from "node:http";
 import * as vscode from "vscode";
-import type { OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
+import type { OAuthTokens } from "@modelcontextprotocol/client";
 import {
   OAuthCallbackServer,
   SecretStorageOAuthProvider,
   supportsOAuth,
-} from "../auth/oauth";
+} from "@dhananjay-jsr/mcp-inspector-core/transport";
 import { WebOAuthCallback, withUsableCallbackRoute } from "../auth/oauth.web";
 
 class FakeSecretStorage implements vscode.SecretStorage {

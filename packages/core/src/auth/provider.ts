@@ -1,10 +1,11 @@
-import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import type {
   OAuthClientInformationMixed,
   OAuthClientMetadata,
+  OAuthClientProvider,
   OAuthTokens,
-} from "@modelcontextprotocol/sdk/shared/auth.js";
-import * as vscode from "vscode";
+} from "@modelcontextprotocol/client";
+import type { CancellationToken, Notifier, SecretStore } from "../ports";
+import { noopNotifier } from "../ports";
 
 export interface CallbackResult {
   code?: string;
@@ -21,7 +22,7 @@ export interface OAuthCallback {
   readonly url: string;
   waitForCode(
     expectedState: string | undefined,
-    token?: vscode.CancellationToken,
+    token?: CancellationToken,
   ): Promise<string>;
   close(): void;
 }
@@ -77,9 +78,10 @@ export class SecretStorageOAuthProvider implements OAuthClientProvider {
   private expectedState: string | undefined;
 
   constructor(
-    private readonly secrets: vscode.SecretStorage,
+    private readonly secrets: SecretStore,
     private readonly serverUrl: URL,
     private readonly callback: OAuthCallback,
+    private readonly notifier: Notifier = noopNotifier,
   ) {}
 
   get redirectUrl(): string {
@@ -142,7 +144,7 @@ export class SecretStorageOAuthProvider implements OAuthClientProvider {
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
-    await vscode.env.openExternal(vscode.Uri.parse(authorizationUrl.toString()));
+    await this.notifier.openExternal(authorizationUrl.toString());
   }
 
   async invalidateCredentials(

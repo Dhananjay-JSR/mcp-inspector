@@ -3,18 +3,22 @@
 .vscode-test/**
 .vscode-test-web/**
 dist/web-test/**
+fixtures/**
+packages/**
 node_modules/**
 out/test/**
 src/**
+scripts/**
 
 docs/**
+esbuild.cli.mjs
+esbuild.core.mjs
 esbuild.node.mjs
 .commitlintrc.json
 .nvmrc
 CONTRIBUTING.md
 esbuild.web.mjs
 esbuild.web-test.mjs
-patch-sdk.js
 .gitignore
 .yarnrc
 vsc-extension-quickstart.md

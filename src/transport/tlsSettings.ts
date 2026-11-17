@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { TlsConfig } from "./tls";
+import type { TlsConfig } from "@dhananjay-jsr/mcp-inspector-core/transport";
 
 const SECTION = "mcp--inspector";
 

@@ -1,30 +1,34 @@
-import { auth, UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
-import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport, SseError } from "@modelcontextprotocol/sdk/client/sse.js";
-import type { SSEClientTransportOptions } from "@modelcontextprotocol/sdk/client/sse.js";
 import {
+  auth,
+  Client,
+  SdkHttpError,
+  SSEClientTransport,
+  SseError,
   StreamableHTTPClientTransport,
-  StreamableHTTPError,
-} from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { StreamableHTTPClientTransportOptions } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
-import * as vscode from "vscode";
-import {
-  SecretStorageOAuthProvider,
-  supportsOAuth,
-  WebOAuthCallback,
-} from "../auth/oauth.web";
-import { describeError, describeOAuthBootstrapFailure, isOAuthDiscoveryFailure } from "./errorHints";
-import { connectWithFallback } from "./remote";
+  UnauthorizedError,
+} from "@modelcontextprotocol/client";
+import type {
+  FetchLike,
+  OAuthClientProvider,
+  SSEClientTransportOptions,
+  StreamableHTTPClientTransportOptions,
+} from "@modelcontextprotocol/client";
+import { WebOAuthCallback } from "../auth/oauth.web";
+import { SecretStorageOAuthProvider, supportsOAuth } from "@dhananjay-jsr/mcp-inspector-core";
+import { DEFAULT_CLIENT_INFO, describeError, describeOAuthBootstrapFailure, isOAuthDiscoveryFailure, noopNotifier } from "@dhananjay-jsr/mcp-inspector-core";
+import type { TlsConfig } from "@dhananjay-jsr/mcp-inspector-core/transport";
+import { toTool } from "@dhananjay-jsr/mcp-inspector-core";
+import { connectWithFallback } from "@dhananjay-jsr/mcp-inspector-core";
 import type {
   ConnectionResult,
   HeadersMap,
+  ClientInfo,
   IMCPClient,
-  InputSchema,
+  Notifier,
+  SecretStore,
   Tool,
   ToolResult,
-} from "./types";
+} from "@dhananjay-jsr/mcp-inspector-core";
 
 const STDIO_WEB_ERROR =
   "STDIO is not available in VS Code for the Web. Use the desktop app or Codespaces, or connect to a remote SSE server.";
@@ -64,7 +68,7 @@ function isUnauthorized(error: unknown): boolean {
   if (error instanceof SseError && error.code === 401) {
     return true;
   }
-  if (error instanceof StreamableHTTPError && error.code === 401) {
+  if (error instanceof SdkHttpError && error.status === 401) {
     return true;
   }
   return error instanceof Error && /\b401\b|unauthorized|invalid_token/i.test(error.message);
@@ -87,8 +91,13 @@ export class MCPClient implements IMCPClient {
   private transport: SSEClientTransport | StreamableHTTPClientTransport | null = null;
   private tools: Tool[] = [];
 
-  constructor(private readonly secrets?: vscode.SecretStorage) {
-    this.mcp = new Client({ name: "mcp-debugger-vscode-extension", version: "1.0.0" });
+  constructor(
+    private readonly secrets?: SecretStore,
+    _tls?: TlsConfig,
+    private readonly notifier: Notifier = noopNotifier,
+    private readonly identity: ClientInfo = DEFAULT_CLIENT_INFO,
+  ) {
+    this.mcp = new Client(this.identity);
   }
 
   async connectToStdio(_scriptPath: string, _args = ""): Promise<ConnectionResult> {
@@ -105,7 +114,7 @@ export class MCPClient implements IMCPClient {
         throw new Error("Server URL must start with http:// or https://");
       }
 
-      this.mcp = new Client({ name: "mcp-debugger-vscode-extension", version: "1.0.0" });
+      this.mcp = new Client(this.identity);
       const options: SSEClientTransportOptions = { ...(requestOptions(headers) ?? {}) };
       if (authProvider) {
         options.authProvider = authProvider;
@@ -114,13 +123,9 @@ export class MCPClient implements IMCPClient {
       await this.mcp.connect(this.transport);
 
       const toolsResult = await this.mcp.listTools();
-      this.tools = toolsResult.tools.map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        input_schema: tool.inputSchema as InputSchema,
-      }));
+      this.tools = toolsResult.tools.map(toTool);
 
-      vscode.window.showInformationMessage(
+      this.notifier.info(
         `Connected to MCP server via SSE with ${this.tools.length} tools`,
       );
       return { success: true, tools: this.tools };
@@ -145,7 +150,7 @@ export class MCPClient implements IMCPClient {
         throw new Error("Server URL must start with http:// or https://");
       }
 
-      this.mcp = new Client({ name: "mcp-debugger-vscode-extension", version: "1.0.0" });
+      this.mcp = new Client(this.identity);
       const options: StreamableHTTPClientTransportOptions = {
         ...(requestOptions(headers) ?? {}),
       };
@@ -156,13 +161,9 @@ export class MCPClient implements IMCPClient {
       await this.mcp.connect(this.transport);
 
       const toolsResult = await this.mcp.listTools();
-      this.tools = toolsResult.tools.map((tool) => ({
-        name: tool.name,
-        description: tool.description,
-        input_schema: tool.inputSchema as InputSchema,
-      }));
+      this.tools = toolsResult.tools.map(toTool);
 
-      vscode.window.showInformationMessage(
+      this.notifier.info(
         `Connected to MCP server via Streamable HTTP with ${this.tools.length} tools`,
       );
       return { success: true, tools: this.tools };
@@ -196,7 +197,7 @@ export class MCPClient implements IMCPClient {
 
       const provider =
         useOAuth && endpoint && this.secrets
-          ? new SecretStorageOAuthProvider(this.secrets, endpoint, callback as WebOAuthCallback)
+          ? new SecretStorageOAuthProvider(this.secrets, endpoint, callback as WebOAuthCallback, this.notifier)
           : null;
 
       const attempt = (
@@ -254,13 +255,9 @@ export class MCPClient implements IMCPClient {
 
               // 2. Wait for the redirect to come back through the URI handler.
               onPhase?.("Waiting for sign-in in your browser…");
-              const code = await vscode.window.withProgress(
-                {
-                  location: vscode.ProgressLocation.Notification,
-                  title: "Waiting for MCP sign-in in your browser",
-                  cancellable: true,
-                },
-                (_progress, token) => callback.waitForCode(provider.stateValue, token),
+              const code = await this.notifier.withProgress(
+                "Waiting for MCP sign-in in your browser",
+                (token) => callback.waitForCode(provider.stateValue, token),
               );
 
               // 3. Exchange the code at the auth server, then retry the relay with
@@ -281,13 +278,9 @@ export class MCPClient implements IMCPClient {
 
             // Direct connection: the transport already opened the browser.
             onPhase?.("Waiting for sign-in in your browser…");
-            const code = await vscode.window.withProgress(
-              {
-                location: vscode.ProgressLocation.Notification,
-                title: "Waiting for MCP sign-in in your browser",
-                cancellable: true,
-              },
-              (_progress, token) => callback.waitForCode(provider.stateValue, token),
+            const code = await this.notifier.withProgress(
+              "Waiting for MCP sign-in in your browser",
+              (token) => callback.waitForCode(provider.stateValue, token),
             );
             onPhase?.("Exchanging authorization code…");
             await auth(provider, { serverUrl: target, authorizationCode: code });

@@ -31,6 +31,31 @@ separate inspector process required.
 - Launch from the activity-bar view or the Command Palette, and inspect in a full panel
 - Run in the desktop app and in VS Code for the Web, with a relay fallback when a server blocks the browser origin
 
+## For agents and CI
+
+The same core ships as `mcp-inspector`, a headless checker. It asks whether a
+server's MCP Apps metadata will render *before* a host tries, and it never
+opens a browser.
+
+```bash
+npx @dhananjay-jsr/mcp-inspector apps check 'stdio:"node ./server.mjs"'
+npx @dhananjay-jsr/mcp-inspector apps check https://example.com/mcp --json
+npx @dhananjay-jsr/mcp-inspector tools list 'stdio:"node ./server.mjs"'
+npx @dhananjay-jsr/mcp-inspector resources read https://example.com/mcp --uri ui://app/view.html
+```
+
+- `apps check` runs `APP001`–`APP015` and compares both handshakes: with and
+  without `io.modelcontextprotocol/ui`. `--call-tools` also exercises
+  `tools/call`, which turns on the result checks.
+- Output is JSON when stdout is not a TTY. Force it with `--json`, ask for a
+  human summary with `--pretty`, or stream every wire message with `--ndjson`.
+- Exit codes: `0` clean, `1` error findings, `2` could not connect, `3` usage.
+- Every document has a `schema` field such as
+  `mcp-inspector/apps-check@1`. `mcp-inspector schema apps check` prints its
+  JSON schema, and `--help --json` describes the commands for an agent.
+- Headers: `--header 'Authorization: Bearer …'`, or
+  `MCP_INSPECTOR_HEADER_AUTHORIZATION=…` in the environment.
+
 ## Installation
 
 Install **MCP Inspector** from the

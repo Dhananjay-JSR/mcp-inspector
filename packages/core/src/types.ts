@@ -10,6 +10,10 @@ export interface Tool {
   name: string;
   description?: string;
   input_schema: InputSchema;
+  /** MCP Apps lives here: `_meta.ui.resourceUri` declares the View. */
+  _meta?: unknown;
+  annotations?: unknown;
+  outputSchema?: unknown;
 }
 
 export type RemoteTransport = "sse" | "streamable-http";
