@@ -29,7 +29,7 @@ ${head}
 (function () {
   var cfg = ${config};
   var nextId = 1;
-  var pending = {};
+  var pending = new Map();
 
   function send(msg) {
     parent.postMessage(msg, "*");
@@ -38,7 +38,7 @@ ${head}
   function request(method, params) {
     return new Promise(function (resolve) {
       var id = nextId++;
-      pending[id] = resolve;
+      pending.set(id, resolve);
       send({ jsonrpc: "2.0", id: id, method: method, params: params });
     });
   }
@@ -48,9 +48,9 @@ ${head}
     if (!msg || msg.jsonrpc !== "2.0") {
       return;
     }
-    if (msg.id !== undefined && pending[msg.id]) {
-      var resolve = pending[msg.id];
-      delete pending[msg.id];
+    var resolve = msg.id !== undefined ? pending.get(msg.id) : undefined;
+    if (typeof resolve === "function") {
+      pending.delete(msg.id);
       resolve(msg.result);
       return;
     }
