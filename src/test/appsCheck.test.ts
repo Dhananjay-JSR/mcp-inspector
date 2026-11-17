@@ -5,6 +5,7 @@ import {
   runAppsCheck,
   runAppsCheckPair,
 } from "@dhananjay-jsr/mcp-inspector-core";
+import { MCPClient } from "../transport/MCPTransport";
 
 const fixture = (name: string) =>
 	path.resolve(__dirname, "../../fixtures", name, "server.mjs");
@@ -137,5 +138,41 @@ suite("MCP Apps preflight", () => {
 
 		assert.deepStrictEqual(ids(result), ["APP008"]);
 		assert.strictEqual(result.verdict.ok, true);
+	});
+});
+
+suite("MCP Apps live session", () => {
+	test("checkApps reuses the connected client and its recording", async function () {
+		this.timeout(20000);
+		const client = new MCPClient();
+
+		try {
+			const connection = await client.connectToStdio("node", fixture("wrong-mime"));
+			assert.strictEqual(connection.success, true, connection.error);
+
+			const result = await client.checkApps();
+			assert.deepStrictEqual(
+				result.findings.map((finding) => finding.id),
+				["APP004"],
+			);
+		} finally {
+			await client.disconnect();
+		}
+	});
+
+	test("checkApps reports no findings for good-dice", async function () {
+		this.timeout(20000);
+		const client = new MCPClient();
+
+		try {
+			const connection = await client.connectToStdio("node", fixture("good-dice"));
+			assert.strictEqual(connection.success, true, connection.error);
+
+			const result = await client.checkApps();
+			assert.deepStrictEqual(result.findings, []);
+			assert.strictEqual(result.verdict.ok, true);
+		} finally {
+			await client.disconnect();
+		}
 	});
 });

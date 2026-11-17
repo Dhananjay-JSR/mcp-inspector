@@ -1,4 +1,5 @@
 import { getState, onAny, platform, send, setState } from "./bridge.js";
+import { disposeView, mountView } from "./view-host.js";
 
 const isWeb = platform.isWeb;
 const relayBase = platform.relayBase;
@@ -357,6 +358,102 @@ function transportName(transport) {
 	return transport === 'sse' ? 'SSE' : 'Streamable HTTP';
 }
 
+let connectedTools = [];
+
+function uiUri(tool) {
+	const meta = tool && tool._meta;
+	return (meta && meta.ui && meta.ui.resourceUri) || (meta && meta['ui/resourceUri']);
+}
+
+function setAppsSummary(text, kind) {
+	const summary = document.getElementById('appsSummary');
+	summary.textContent = text || '';
+	summary.className = 'apps-summary' + (kind ? ' ' + kind : '');
+}
+
+function findingCard(finding) {
+	const card = document.createElement('div');
+	card.className = 'finding finding-' + (finding.severity || 'info');
+	const header = document.createElement('div');
+	header.className = 'finding-header';
+	const id = document.createElement('span');
+	id.className = 'finding-id';
+	id.textContent = finding.id;
+	const title = document.createElement('span');
+	title.className = 'finding-title';
+	title.textContent = finding.title;
+	header.append(id, title);
+
+	const detail = document.createElement('p');
+	detail.className = 'finding-detail';
+	detail.textContent = finding.detail;
+
+	const fix = document.createElement('p');
+	fix.className = 'finding-fix';
+	fix.textContent = 'Fix: ' + finding.fix;
+
+	card.append(header, detail, fix);
+
+	if (finding.tool || finding.resourceUri) {
+		const meta = document.createElement('p');
+		meta.className = 'finding-meta';
+		meta.textContent = [
+			finding.tool ? 'tool: ' + finding.tool : '',
+			finding.resourceUri ? 'resource: ' + finding.resourceUri : '',
+		].filter(Boolean).join('  ·  ');
+		card.append(meta);
+	}
+
+	return card;
+}
+
+function renderAppsFindings(result) {
+	const panel = document.getElementById('appsPanel');
+	const list = document.getElementById('appsFindings');
+	const renderButton = document.getElementById('appsRenderButton');
+
+	if (!result) {
+		panel.hidden = true;
+		list.replaceChildren();
+		setAppsSummary('');
+		return;
+	}
+
+	panel.hidden = false;
+	list.replaceChildren();
+
+	if (result.connectError) {
+		setAppsSummary((result.verdict && result.verdict.summary) || 'Could not check MCP Apps.', 'fail');
+	} else {
+		setAppsSummary(
+			(result.verdict && result.verdict.summary) || '',
+			result.verdict && result.verdict.ok ? 'ok' : 'fail'
+		);
+	}
+
+	renderButton.hidden = !connectedTools.some(tool => uiUri(tool));
+
+	for (const finding of result.findings || []) {
+		list.appendChild(findingCard(finding));
+	}
+}
+
+function checkApps() {
+	setAppsSummary('Checking MCP Apps…');
+	send('checkApps');
+}
+
+function renderApps(tool) {
+	const target = tool || (connectedTools.find(candidate => uiUri(candidate)) || {}).name;
+	if (!target) {
+		setAppsSummary('No tool declares a UI resource.', 'fail');
+		return;
+	}
+	setAppsSummary('Rendering ' + target + '…');
+	document.getElementById('appsRenderButton').hidden = false;
+	send('renderApps', { tool: target });
+}
+
 function displayTools(tools) {
 	const toolsList = document.getElementById('toolsList');
 	toolsList.replaceChildren();
@@ -374,7 +471,24 @@ function displayTools(tools) {
 		name.textContent = tool.name;
 		const description = document.createElement('p');
 		description.textContent = tool.description || '';
-		item.append(name, description);
+		item.append(name);
+
+		const ui = tool._meta && tool._meta.ui;
+		const uri = (ui && ui.resourceUri) || (tool._meta && tool._meta['ui/resourceUri']);
+		if (uri) {
+			const badge = document.createElement('span');
+			badge.className = 'apps-badge';
+			badge.textContent = 'MCP App';
+			name.append(badge);
+			if (Array.isArray(ui && ui.visibility) && ui.visibility.length > 0) {
+				const chip = document.createElement('span');
+				chip.className = 'apps-chip';
+				chip.textContent = ui.visibility.join(' + ');
+				item.append(chip);
+			}
+		}
+
+		item.append(description);
 
 		const run = document.createElement('button');
 		run.className = 'tool-button';
@@ -382,6 +496,15 @@ function displayTools(tools) {
 		run.addEventListener('click', () => showToolModal(tool.name, fields));
 
 		row.append(item, run);
+
+		if (uri) {
+			const renderButton = document.createElement('button');
+			renderButton.className = 'tool-button secondary';
+			renderButton.textContent = 'Render';
+			renderButton.addEventListener('click', () => renderApps(tool.name));
+			row.append(renderButton);
+		}
+
 		toolsList.appendChild(row);
 	});
 }
@@ -397,8 +520,13 @@ onAny(message => {
 			if (message.data.disconnected) {
 				updateConnectionUI(false);
 				hideErrorCard();
+				connectedTools = [];
+				renderAppsFindings(null);
+				disposeView();
 			} else if (message.data.success) {
 				const tools = message.data.tools || [];
+				connectedTools = tools;
+				document.getElementById('appsPanel').hidden = false;
 				updateConnectionUI(
 					true,
 					message.data.transport ? transportName(message.data.transport) : '',
@@ -434,6 +562,36 @@ onAny(message => {
 				}, offerRelay);
 			}
 			break;
+		case 'appsStatus':
+			setAppsSummary(message.data && message.data.phase ? message.data.phase : '', message.data && message.data.failed ? 'fail' : '');
+			break;
+		case 'appsFindings':
+			renderAppsFindings(message.data);
+			break;
+		case 'appsRender': {
+			const container = document.getElementById('appView');
+			if (!message.data) {
+				container.hidden = true;
+				disposeView();
+				break;
+			}
+			container.hidden = false;
+			setAppsSummary(`Rendered ${message.data.tool}`, 'ok');
+			mountView(container, {
+				html: message.data.html,
+				csp: message.data.csp,
+				args: message.data.args,
+				result: message.data.result,
+				onIssue: (kind, data) => {
+					if (kind === 'error') {
+						setAppsSummary(`View error: ${(data && data.message) || 'unknown'}`, 'fail');
+					} else if (kind === 'csp') {
+						setAppsSummary(`View CSP violation: ${(data && data.violatedDirective) || 'blocked resource'}`, 'fail');
+					}
+				},
+			});
+			break;
+		}
 		case 'commandPicked': {
 			const commandInput = document.getElementById('command');
 			commandInput.value = message.data.path;
@@ -845,6 +1003,7 @@ send('ready');
 // Inline HTML attributes resolve against window; esbuild wraps this file.
 Object.assign(window, {
 	addHeader,
+	checkApps,
 	clearTlsFile,
 	closeModal,
 	connect,
@@ -858,6 +1017,7 @@ Object.assign(window, {
 	openErrorSettings,
 	openRelayRepo,
 	pickCommand,
+	renderApps,
 	pickTlsFile,
 	retryConnection,
 	retryTool,

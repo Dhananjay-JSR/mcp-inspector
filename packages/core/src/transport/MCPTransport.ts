@@ -11,6 +11,11 @@ import type {
   StreamableHTTPClientTransportOptions,
 } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import type { ReadResourceResult } from "@modelcontextprotocol/client";
+import { checkLiveSession } from "../apps/run";
+import type { AppsCheckOptions, AppsCheckResult } from "../apps/types";
+import { createRecording, recordedTransport } from "../recorder";
+import type { Recording } from "../recorder";
 import { OAuthCallbackServer } from "../auth/oauth";
 import { SecretStorageOAuthProvider, supportsOAuth } from "../auth/provider";
 import { describeError, describeOAuthBootstrapFailure, isOAuthDiscoveryFailure } from "../errorHints";
@@ -47,6 +52,7 @@ export class MCPClient implements IMCPClient {
     | null = null;
   private tools: Tool[] = [];
   private tlsFetch?: TlsFetch;
+  private recording: Recording = createRecording();
 
   constructor(
     private readonly secrets?: SecretStore,
@@ -65,7 +71,8 @@ export class MCPClient implements IMCPClient {
         args: argsArray,
       });
 
-      await this.mcp.connect(this.transport);
+      this.recording = createRecording();
+      await this.mcp.connect(recordedTransport(this.transport, this.recording));
 
       const toolsResult = await this.mcp.listTools();
       this.tools = toolsResult.tools.map(toTool);
@@ -103,7 +110,8 @@ export class MCPClient implements IMCPClient {
       }
       this.transport = new SSEClientTransport(new URL(serverUrl), options);
 
-      await this.mcp.connect(this.transport);
+      this.recording = createRecording();
+      await this.mcp.connect(recordedTransport(this.transport, this.recording));
 
       const toolsResult = await this.mcp.listTools();
       this.tools = toolsResult.tools.map(toTool);
@@ -158,7 +166,8 @@ export class MCPClient implements IMCPClient {
       }
       this.transport = new StreamableHTTPClientTransport(new URL(serverUrl), options);
 
-      await this.mcp.connect(this.transport);
+      this.recording = createRecording();
+      await this.mcp.connect(recordedTransport(this.transport, this.recording));
 
       const toolsResult = await this.mcp.listTools();
       this.tools = toolsResult.tools.map(toTool);
@@ -343,11 +352,29 @@ export class MCPClient implements IMCPClient {
     }
   }
 
+  async checkApps(options: AppsCheckOptions = {}): Promise<AppsCheckResult> {
+    if (!this.transport) {
+      return {
+        recording: this.recording,
+        findings: [],
+        verdict: { ok: false, summary: "Not connected to any transport." },
+        connectError: "Not connected to any transport.",
+      };
+    }
+
+    return checkLiveSession(this.mcp, this.tools, this.recording, options);
+  }
+
+  async readResource(uri: string): Promise<ReadResourceResult> {
+    return this.mcp.readResource({ uri });
+  }
+
   async disconnect(): Promise<void> {
     if (this.transport) {
       await this.mcp.close();
       this.transport = null;
       this.tools = [];
+      this.recording = createRecording();
     }
     await this.closeTlsFetch();
   }
