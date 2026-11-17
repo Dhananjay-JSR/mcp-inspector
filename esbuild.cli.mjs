@@ -11,8 +11,19 @@ await esbuild.build({
   platform: "node",
   target: "node22",
   banner: { js: "#!/usr/bin/env node" },
+  external: ["playwright-core"],
   sourcemap: !production,
   minify: production,
   logLevel: "info",
   plugins: [coreSource],
+});
+
+await esbuild.build({
+  entryPoints: ["packages/cli/src/host-page.js"],
+  outfile: "packages/cli/dist/host-page.js",
+  bundle: false,
+  platform: "browser",
+  target: "es2022",
+  minify: production,
+  logLevel: "info",
 });

@@ -1,6 +1,17 @@
-import type { AppsCheckResult, Finding } from "@dhananjay-jsr/mcp-inspector-core";
+import type {
+  Finding,
+  ServerIdentity,
+  Verdict,
+} from "@dhananjay-jsr/mcp-inspector-core";
 
-function serverLine(result: AppsCheckResult): string {
+export interface CheckSummary {
+  server?: ServerIdentity;
+  verdict: Verdict;
+  findings: Finding[];
+  connectError?: string;
+}
+
+function serverLine(result: CheckSummary): string {
   const server = result.server;
   if (!server?.name) {
     return "server: unknown";
@@ -25,8 +36,11 @@ function findingLines(finding: Finding): string[] {
   return lines;
 }
 
-export function checkText(result: AppsCheckResult): string {
-  const lines = ["MCP Inspector: apps check", serverLine(result)];
+export function checkText(
+  result: CheckSummary,
+  title = "MCP Inspector: apps check",
+): string {
+  const lines = [title, serverLine(result)];
 
   if (result.connectError) {
     lines.push(`verdict: COULD NOT CONNECT`, `  ${result.connectError}`);

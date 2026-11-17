@@ -17,6 +17,16 @@ const STEP_FOR_ID: Record<string, string> = {
   APP013: "tools/call",
   APP014: "tools/list",
   APP015: "server/discover",
+  VIEW001: "ui/initialize",
+  VIEW002: "ui/initialize",
+  VIEW003: "ui/notifications/initialized",
+  VIEW004: "size-changed",
+  VIEW005: "size-changed",
+  VIEW006: "view script",
+  VIEW007: "csp",
+  VIEW008: "hostCapabilities",
+  VIEW009: "host request",
+  VIEW010: "tools/call",
 };
 
 /**
