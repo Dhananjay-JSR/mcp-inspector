@@ -25,6 +25,17 @@ should catch.
 More fixtures land with `VIEW001`–`VIEW010`; each one will get its own
 `server.mjs` and, where needed, a `view.html`.
 
+## HTTP fixture
+
+`http-dice` serves the same dice app over stateless Streamable HTTP with CORS,
+so the web extension tests can connect from a browser:
+
+```bash
+node fixtures/http-dice/server.mjs --port 3979
+```
+
+`scripts/test-web.mjs` starts it automatically before `vscode-test-web`.
+
 ## Run
 
 ```bash
